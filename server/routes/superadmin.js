@@ -13,20 +13,21 @@ router.get('/clinics', requireAuth, requireSuperAdmin, (req, res) => {
                 'id', u.id, 
                 'fullName', u.fullName, 
                 'email', u.email, 
-                'role', GROUP_CONCAT(r.name, ', ')
+                'role', (SELECT GROUP_CONCAT(r2.name, ', ')
+                        FROM ClinicUser cu2
+                        JOIN Role r2 ON cu2.roleId = r2.id
+                        WHERE cu2.userId = u.id AND cu2.clinicId = c.id
+                        AND r2.name NOT IN ('SUPER_ADMIN'))
             ))
-             FROM ClinicUser cu 
-             JOIN User u ON cu.userId = u.id 
-             JOIN Role r ON cu.roleId = r.id
-             WHERE cu.clinicId = c.id
-             GROUP BY u.id) as staff
+             FROM (SELECT DISTINCT userId FROM ClinicUser WHERE clinicId = c.id) cu
+             JOIN User u ON cu.userId = u.id) as staff
             FROM Clinic c
         `).all();
 
         // Parse staff JSON strings
         const formattedClinics = clinics.map(clinic => ({
             ...clinic,
-            staff: JSON.parse(clinic.staff)
+            staff: clinic.staff ? JSON.parse(clinic.staff) : []
         }));
 
         res.json(formattedClinics);
@@ -79,16 +80,18 @@ router.delete('/clinics/:id', requireAuth, requireSuperAdmin, (req, res) => {
 router.get('/users', requireAuth, requireSuperAdmin, (req, res) => {
     try {
         const users = db.prepare(`
-            SELECT u.id, u.email, u.fullName, u.createdAt, u.lastLogin,
+            SELECT u.id, u.email, u.fullName, u.emailVerified, u.createdAt, u.lastLogin,
             (SELECT json_group_array(json_object(
                 'clinicId', c.id,
                 'clinicName', c.name,
-                'role', r.name
+                'role', (SELECT GROUP_CONCAT(r2.name, ', ')
+                        FROM ClinicUser cu2
+                        JOIN Role r2 ON cu2.roleId = r2.id
+                        WHERE cu2.userId = u.id AND cu2.clinicId = c.id
+                        AND r2.name NOT IN ('SUPER_ADMIN'))
             ))
-             FROM ClinicUser cu
-             JOIN Clinic c ON cu.clinicId = c.id
-             JOIN Role r ON cu.roleId = r.id
-             WHERE cu.userId = u.id) as associations
+             FROM (SELECT DISTINCT clinicId FROM ClinicUser WHERE userId = u.id) cu
+             JOIN Clinic c ON cu.clinicId = c.id) as associations
             FROM User u
         `).all();
 
@@ -120,6 +123,24 @@ router.patch('/users/:id', requireAuth, requireSuperAdmin, (req, res) => {
         res.json({ message: 'User updated successfully' });
     } catch (error) {
         console.error('Error updating user:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// Manually verify user's email
+router.post('/users/:id/verify-email', requireAuth, requireSuperAdmin, (req, res) => {
+    try {
+        const { id } = req.params;
+
+        db.prepare(`
+            UPDATE User
+            SET emailVerified = 1
+            WHERE id = ?
+        `).run(id);
+
+        res.json({ message: 'User email verified successfully' });
+    } catch (error) {
+        console.error('Error verifying user email:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
 });

@@ -5,7 +5,7 @@ import LogoutButton from '../../components/LogoutButton'
 import {
     FaUserShield, FaUsers, FaHouseMedical,
     FaArrowLeft, FaTrashCan, FaPenToSquare, FaFloppyDisk, FaXmark,
-    FaHospital, FaEnvelope, FaClock, FaPlus, FaTrash
+    FaHospital, FaEnvelope, FaClock, FaPlus, FaTrash, FaCircleCheck, FaCircleXmark
 } from 'react-icons/fa6'
 import api from '../../utils/api'
 import { toast } from 'react-hot-toast'
@@ -105,6 +105,16 @@ export default function MasterDashboard() {
             fetchData()
         } catch (error) {
             toast.error('Failed to delete user')
+        }
+    }
+
+    const handleVerifyEmail = async (userId) => {
+        try {
+            await api.post(`/superadmin/users/${userId}/verify-email`)
+            toast.success('Email verified successfully')
+            fetchData()
+        } catch (error) {
+            toast.error('Failed to verify email')
         }
     }
 
@@ -221,11 +231,17 @@ export default function MasterDashboard() {
                                             {/* Staff List */}
                                             <div className="mt-6">
                                                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Staff List</h4>
-                                                <div className="flex flex-wrap gap-2">
+                                                <div className="flex flex-wrap gap-3">
                                                     {clinic.staff?.map(s => (
-                                                        <div key={`${s.id}-${s.role}`} className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs flex items-center space-x-2">
-                                                            <span className="text-white font-medium">{s.fullName}</span>
-                                                            <span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-400 rounded text-[10px] uppercase font-bold">{s.role}</span>
+                                                        <div key={`${clinic.id}-${s.id}-${s.email}`} className="px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-xs flex flex-col space-y-1 hover:bg-white/10 transition-colors">
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <span className="text-white font-semibold">{s.fullName}</span>
+                                                                <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded text-[9px] uppercase font-black tracking-wider leading-none">{s.role}</span>
+                                                            </div>
+                                                            <div className="flex items-center space-x-1.5 text-slate-400">
+                                                                <FaEnvelope className="w-2.5 h-2.5 opacity-50" />
+                                                                <span className="font-mono text-[10px]">{s.email}</span>
+                                                            </div>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -260,9 +276,22 @@ export default function MasterDashboard() {
                                                 <div className="p-2 bg-purple-500/20 rounded-lg">
                                                     <FaUserShield className="w-5 h-5 text-purple-400" />
                                                 </div>
-                                                <div>
+                                                <div className="flex-1">
                                                     <h3 className="text-xl font-bold">{user.fullName}</h3>
-                                                    <p className="text-sm text-slate-400">{user.email}</p>
+                                                    <div className="flex items-center space-x-2">
+                                                        <p className="text-sm text-slate-400">{user.email}</p>
+                                                        {user.emailVerified ? (
+                                                            <span className="flex items-center space-x-1 text-xs text-green-400" title="Email Verified">
+                                                                <FaCircleCheck className="w-3 h-3" />
+                                                                <span>Verified</span>
+                                                            </span>
+                                                        ) : (
+                                                            <span className="flex items-center space-x-1 text-xs text-red-400" title="Email Not Verified">
+                                                                <FaCircleXmark className="w-3 h-3" />
+                                                                <span>Not Verified</span>
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 <span className="text-xs text-slate-500 font-mono">ID: {user.id}</span>
                                             </div>
@@ -270,8 +299,8 @@ export default function MasterDashboard() {
                                             <div className="mt-4">
                                                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Clinic Associations</h4>
                                                 <div className="space-y-2">
-                                                    {user.associations?.map((assoc, i) => (
-                                                        <div key={i} className="flex items-center justify-between p-3 bg-black/20 border border-white/5 rounded-xl text-sm">
+                                                    {user.associations?.map((assoc) => (
+                                                        <div key={assoc.clinicId} className="flex items-center justify-between p-3 bg-black/20 border border-white/5 rounded-xl text-sm">
                                                             <div className="flex items-center space-x-3">
                                                                 <FaHouseMedical className="text-blue-400 w-4 h-4" />
                                                                 <span className="font-medium">{assoc.clinicName}</span>
@@ -309,15 +338,26 @@ export default function MasterDashboard() {
                                         </div>
 
                                         <div className="flex md:flex-col gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                            {!user.emailVerified && (
+                                                <button
+                                                    onClick={() => handleVerifyEmail(user.id)}
+                                                    className="p-3 bg-white/5 hover:bg-green-500/20 rounded-xl transition-colors text-green-400"
+                                                    title="Verify Email"
+                                                >
+                                                    <FaCircleCheck className="w-5 h-5" />
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => setEditingUser(user)}
                                                 className="p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-colors text-purple-400"
+                                                title="Edit User"
                                             >
                                                 <FaPenToSquare className="w-5 h-5" />
                                             </button>
                                             <button
                                                 onClick={() => handleDeleteUser(user.id)}
                                                 className="p-3 bg-white/5 hover:bg-red-500/20 rounded-xl transition-colors text-red-400"
+                                                title="Delete User"
                                             >
                                                 <FaTrashCan className="w-5 h-5" />
                                             </button>
