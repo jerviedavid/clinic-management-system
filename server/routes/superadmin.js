@@ -88,7 +88,15 @@ router.get('/users', requireAuth, requireSuperAdmin, (req, res) => {
                         FROM ClinicUser cu2
                         JOIN Role r2 ON cu2.roleId = r2.id
                         WHERE cu2.userId = u.id AND cu2.clinicId = c.id
-                        AND r2.name NOT IN ('SUPER_ADMIN'))
+                        AND r2.name NOT IN ('SUPER_ADMIN')),
+                'planId', (SELECT s.planId FROM Subscription s WHERE s.clinicId = c.id),
+                'planName', (SELECT p.name FROM Subscription s 
+                             JOIN Plan p ON s.planId = p.id 
+                             WHERE s.clinicId = c.id),
+                'subscriptionStatus', (SELECT s.status FROM Subscription s WHERE s.clinicId = c.id),
+                'priceMonthly', (SELECT p.priceMonthly FROM Subscription s 
+                                 JOIN Plan p ON s.planId = p.id 
+                                 WHERE s.clinicId = c.id)
             ))
              FROM (SELECT DISTINCT clinicId FROM ClinicUser WHERE userId = u.id) cu
              JOIN Clinic c ON cu.clinicId = c.id) as associations
@@ -230,6 +238,69 @@ router.delete('/users/:userId/clinics/:clinicId', requireAuth, requireSuperAdmin
         res.json({ message: 'User association removed successfully' });
     } catch (error) {
         console.error('Error removing user association:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// Get all available plans
+router.get('/plans', requireAuth, requireSuperAdmin, (req, res) => {
+    try {
+        const plans = db.prepare(`
+            SELECT id, name, priceMonthly, priceYearly, maxDoctors, maxStaff, multiClinic, features
+            FROM Plan
+            ORDER BY priceMonthly ASC
+        `).all();
+
+        const formattedPlans = plans.map(plan => ({
+            ...plan,
+            multiClinic: plan.multiClinic === 1,
+            features: plan.features ? JSON.parse(plan.features) : []
+        }));
+
+        res.json(formattedPlans);
+    } catch (error) {
+        console.error('Error fetching plans:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// Update clinic subscription plan
+router.patch('/clinics/:clinicId/subscription', requireAuth, requireSuperAdmin, (req, res) => {
+    try {
+        const { clinicId } = req.params;
+        const { planId } = req.body;
+
+        if (!planId) {
+            return res.status(400).json({ message: 'Plan ID is required' });
+        }
+
+        // Check if plan exists
+        const plan = db.prepare('SELECT id FROM Plan WHERE id = ?').get(planId);
+        if (!plan) {
+            return res.status(404).json({ message: 'Plan not found' });
+        }
+
+        // Check if subscription exists
+        const subscription = db.prepare('SELECT id FROM Subscription WHERE clinicId = ?').get(clinicId);
+
+        if (subscription) {
+            // Update existing subscription
+            db.prepare(`
+                UPDATE Subscription
+                SET planId = ?, status = 'active', updatedAt = CURRENT_TIMESTAMP
+                WHERE clinicId = ?
+            `).run(planId, clinicId);
+        } else {
+            // Create new subscription
+            db.prepare(`
+                INSERT INTO Subscription (clinicId, planId, status)
+                VALUES (?, ?, 'active')
+            `).run(clinicId, planId);
+        }
+
+        res.json({ message: 'Subscription plan updated successfully' });
+    } catch (error) {
+        console.error('Error updating subscription plan:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
 });

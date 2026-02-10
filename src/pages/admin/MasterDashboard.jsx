@@ -5,7 +5,8 @@ import LogoutButton from '../../components/LogoutButton'
 import {
     FaUserShield, FaUsers, FaHouseMedical,
     FaArrowLeft, FaTrashCan, FaPenToSquare, FaFloppyDisk, FaXmark,
-    FaHospital, FaEnvelope, FaClock, FaPlus, FaTrash, FaCircleCheck, FaCircleXmark
+    FaHospital, FaEnvelope, FaClock, FaPlus, FaTrash, FaCircleCheck, FaCircleXmark,
+    FaCrown, FaTag
 } from 'react-icons/fa6'
 import api from '../../utils/api'
 import { toast } from 'react-hot-toast'
@@ -14,11 +15,13 @@ export default function MasterDashboard() {
     const { isSuperAdmin } = useAuth()
     const [clinics, setClinics] = useState([])
     const [users, setUsers] = useState([])
+    const [plans, setPlans] = useState([])
     const [allClinics, setAllClinics] = useState([]) // For selection dropdown
     const [isLoading, setIsLoading] = useState(true)
     const [activeTab, setActiveTab] = useState('clinics') // 'clinics' or 'users'
     const [editingClinic, setEditingClinic] = useState(null)
     const [editingUser, setEditingUser] = useState(null)
+    const [editingPlan, setEditingPlan] = useState(null) // { clinicId, clinicName, currentPlanId }
     const [associatingUser, setAssociatingUser] = useState(null)
     const [assocData, setAssocData] = useState({
         clinicId: '',
@@ -27,6 +30,7 @@ export default function MasterDashboard() {
 
     useEffect(() => {
         if (isSuperAdmin) {
+            fetchPlans()
             fetchData()
             fetchAllClinics()
         }
@@ -56,7 +60,17 @@ export default function MasterDashboard() {
             setAllClinics(response.data)
         } catch (error) {
             console.error('Error fetching all clinics:', error)
+     
+
+    const fetchPlans = async () => {
+        try {
+            const response = await api.get('/superadmin/plans')
+            setPlans(response.data)
+        } catch (error) {
+            console.error('Error fetching plans:', error)
+            toast.error('Failed to fetch plans')
         }
+    }   }
     }
 
     const handleLinkClinic = async (e) => {
@@ -130,6 +144,24 @@ export default function MasterDashboard() {
         }
     }
 
+
+    const handleUpdatePlan = async (e) => {
+        e.preventDefault()
+        if (!editingPlan.selectedPlanId) {
+            toast.error('Please select a plan')
+            return
+        }
+        try {
+            await api.patch(`/superadmin/clinics/${editingPlan.clinicId}/subscription`, {
+                planId: editingPlan.selectedPlanId
+            })
+            toast.success('Subscription plan updated')
+            setEditingPlan(null)
+            fetchData()
+        } catch (error) {
+            toast.error('Failed to update plan')
+        }
+    }
     const handleUpdateUser = async (e) => {
         e.preventDefault()
         try {
@@ -300,24 +332,79 @@ export default function MasterDashboard() {
                                                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Clinic Associations</h4>
                                                 <div className="space-y-2">
                                                     {user.associations?.map((assoc) => (
-                                                        <div key={assoc.clinicId} className="flex items-center justify-between p-3 bg-black/20 border border-white/5 rounded-xl text-sm">
-                                                            <div className="flex items-center space-x-3">
-                                                                <FaHouseMedical className="text-blue-400 w-4 h-4" />
-                                                                <span className="font-medium">{assoc.clinicName}</span>
-                                                                <span className="text-xs text-slate-500 font-mono">ID: {assoc.clinicId}</span>
+                                                        <div key={assoc.clinicId} className="p-3 bg-black/20 border border-white/5 rounded-xl text-sm">
+                                                            <div className="flex items-center justify-between mb-2">
+                                                                <div className="flex items-center space-x-3">
+                                                                    <FaHouseMedical className="text-blue-400 w-4 h-4" />
+                                                                    <span className="font-medium">{assoc.clinicName}</span>
+                                                                    <span className="text-xs text-slate-500 font-mono">ID: {assoc.clinicId}</span>
+                                                                </div>
+                                                                <div className="flex items-center space-x-2">
+                                                                    <span className="px-2 py-1 bg-purple-500/10 text-purple-400 rounded-lg text-[10px] font-bold uppercase tracking-wider">
+                                                                        {assoc.role}
+                                                                    </span>
+                                                                    <button
+                                                                        onClick={() => handleUnlinkClinic(user.id, assoc.clinicId)}
+                                                                        className="p-1 hover:text-red-400 text-slate-500 transition-colors"
+                                                                        title="Remove Association"
+                                                                    >
+                                                                        <FaTrash className="w-3 h-3" />
+                                                                    </button>
+                                                                </div>
                                                             </div>
-                                                            <div className="flex items-center space-x-3">
-                                                                <span className="px-2 py-1 bg-purple-500/10 text-purple-400 rounded-lg text-[10px] font-bold uppercase tracking-wider">
-                                                                    {assoc.role}
-                                                                </span>
-                                                                <button
-                                                                    onClick={() => handleUnlinkClinic(user.id, assoc.clinicId)}
-                                                                    className="p-1 hover:text-red-400 text-slate-500 transition-colors"
-                                                                    title="Remove Association"
-                                                                >
-                                                                    <FaTrash className="w-3 h-3" />
-                                                                </button>
-                                                            </div>
+                                                            {/* Plan Information */}
+                                                            {assoc.planName && (
+                                                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                                                                    <div className="flex items-center space-x-2">
+                                                                        <FaCrown className="w-3 h-3 text-yellow-400" />
+                                                                        <span className="text-xs text-slate-400">Plan:</span>
+                                                                        <span className="text-xs font-semibold text-yellow-400">{assoc.planName}</span>
+                                                                        {assoc.subscriptionStatus && (
+                                                                            <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                                                                                assoc.subscriptionStatus === 'active' ? 'bg-green-500/20 text-green-400' :
+                                                                                assoc.subscriptionStatus === 'trialing' ? 'bg-blue-500/20 text-blue-400' :
+                                                                                'bg-red-500/20 text-red-400'
+                                                                            }`}>
+                                                                                {assoc.subscriptionStatus}
+                                                                            </span>
+                                                                        )}
+                                                                        {assoc.priceMonthly && (
+                                                                            <span className="text-xs text-slate-500">
+                                                                                (${assoc.priceMonthly}/mo)
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => setEditingPlan({
+                                                                            clinicId: assoc.clinicId,
+                                                                            clinicName: assoc.clinicName,
+                                                                            currentPlanId: assoc.planId,
+                                                                            selectedPlanId: assoc.planId
+                                                                        })}
+                                                                        className="p-1 hover:text-yellow-400 text-slate-500 transition-colors"
+                                                                        title="Change Plan"
+                                                                    >
+                                                                        <FaPenToSquare className="w-3 h-3" />
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                            {!assoc.planName && (
+                                                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                                                                    <span className="text-xs text-slate-500 italic">No subscription plan</span>
+                                                                    <button
+                                                                        onClick={() => setEditingPlan({
+                                                                            clinicId: assoc.clinicId,
+                                                                            clinicName: assoc.clinicName,
+                                                                            currentPlanId: null,
+                                                                            selectedPlanId: ''
+                                                                        })}
+                                                                        className="text-xs text-yellow-400 hover:text-yellow-300 transition-colors flex items-center space-x-1"
+                                                                    >
+                                                                        <FaPlus className="w-2.5 h-2.5" />
+                                                                        <span>Add Plan</span>
+                                                                    </button>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     ))}
                                                     <button
@@ -540,6 +627,92 @@ export default function MasterDashboard() {
                                 <button
                                     type="button"
                                     onClick={() => setAssociatingUser(null)}
+                                    className="flex-1 bg-white/5 hover:bg-white/10 py-3 rounded-xl font-bold transition-all"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Plan Modal */}
+            {editingPlan && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-slate-900 border border-white/10 rounded-3xl p-8 w-full max-w-2xl shadow-2xl">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-bold flex items-center space-x-3">
+                                <FaCrown className="text-yellow-400" />
+                                <span>Update Subscription Plan</span>
+                            </h2>
+                            <button onClick={() => setEditingPlan(null)} className="p-2 hover:bg-white/5 rounded-full">
+                                <FaXmark className="w-6 h-6 text-slate-400" />
+                            </button>
+                        </div>
+                        <p className="text-sm text-slate-400 mb-6">
+                            Change subscription plan for <strong>{editingPlan.clinicName}</strong>
+                        </p>
+                        <form onSubmit={handleUpdatePlan} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-400 mb-3">Select Plan</label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {plans.map(plan => (
+                                        <label
+                                            key={plan.id}
+                                            className={`relative cursor-pointer rounded-xl p-4 border-2 transition-all ${
+                                                editingPlan.selectedPlanId === plan.id
+                                                    ? 'border-yellow-400 bg-yellow-400/10'
+                                                    : 'border-white/10 bg-white/5 hover:border-white/20'
+                                            }`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="plan"
+                                                value={plan.id}
+                                                checked={editingPlan.selectedPlanId === plan.id}
+                                                onChange={(e) => setEditingPlan({ ...editingPlan, selectedPlanId: Number(e.target.value) })}
+                                                className="sr-only"
+                                            />
+                                            <div className="flex items-start justify-between mb-2">
+                                                <div>
+                                                    <h3 className="font-bold text-lg">{plan.name}</h3>
+                                                    <p className="text-2xl font-black text-yellow-400 mt-1">
+                                                        ${plan.priceMonthly}
+                                                        <span className="text-sm text-slate-400 font-normal">/month</span>
+                                                    </p>
+                                                </div>
+                                                {editingPlan.selectedPlanId === plan.id && (
+                                                    <FaCircleCheck className="w-5 h-5 text-yellow-400" />
+                                                )}
+                                            </div>
+                                            <div className="space-y-1 text-xs text-slate-400">
+                                                <div className="flex items-center space-x-2">
+                                                    <FaUsers className="w-3 h-3" />
+                                                    <span>Max {plan.maxDoctors} doctors, {plan.maxStaff} staff</span>
+                                                </div>
+                                                {plan.multiClinic && (
+                                                    <div className="flex items-center space-x-2 text-green-400">
+                                                        <FaHospital className="w-3 h-3" />
+                                                        <span>Multi-clinic support</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="pt-4 flex gap-3">
+                                <button
+                                    type="submit"
+                                    className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-slate-900 py-3 rounded-xl font-bold flex items-center justify-center space-x-2 transition-all"
+                                >
+                                    <FaFloppyDisk className="w-5 h-5" />
+                                    <span>Update Plan</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingPlan(null)}
                                     className="flex-1 bg-white/5 hover:bg-white/10 py-3 rounded-xl font-bold transition-all"
                                 >
                                     Cancel
