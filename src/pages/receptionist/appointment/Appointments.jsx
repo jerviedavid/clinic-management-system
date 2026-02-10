@@ -17,7 +17,8 @@ import {
   Clock,
   Check,
   AlertTriangle,
-  ArrowLeft
+  ArrowLeft,
+  ChevronDown
 } from 'lucide-react'
 import api from '../../../utils/api'
 
@@ -471,9 +472,17 @@ export default function Appointments() {
                       setShowPatientResults(true)
                     }}
                     onFocus={() => setShowPatientResults(true)}
-                    className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none transition-all"
+                    className="w-full pl-10 pr-10 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none transition-all cursor-pointer"
+                    readOnly={false}
                   />
-                  {showPatientResults && patientSearchTerm.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPatientResults(!showPatientResults)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-cyan-400 transition-colors"
+                  >
+                    <ChevronDown className={`w-4 h-4 transition-transform ${showPatientResults ? 'rotate-180' : ''}`} />
+                  </button>
+                  {showPatientResults && (
                     <div className="absolute top-full left-0 right-0 mt-2 bg-slate-700 border border-white/10 rounded-xl shadow-2xl z-[60] max-h-60 overflow-y-auto">
                       {patients.filter(p =>
                         p.fullName.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||

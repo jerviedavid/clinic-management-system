@@ -34,6 +34,8 @@ import Reports from './pages/receptionist/billing/Reports'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import MasterDashboard from './pages/admin/MasterDashboard'
 import Patients from './pages/receptionist/patients/Patients'
+import Pricing from './pages/Pricing'
+import BillingSettings from './pages/settings/BillingSettings'
 
 function App() {
   return (
@@ -43,6 +45,12 @@ function App() {
       <Route path="/signup" element={<Signup />} />
       <Route path="/signup/:role" element={<Signup />} />
       <Route path="/queue" element={<TokenDisplay />} />
+      <Route path="/pricing" element={<Pricing />} />
+      <Route path="/settings/billing" element={
+        <ProtectedRoute>
+          <BillingSettings />
+        </ProtectedRoute>
+      } />
 
       {/* Doctor Routes */}
       <Route path="/doctor" element={

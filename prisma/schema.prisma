@@ -8,12 +8,15 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  fullName  String
-  createdAt DateTime @default(now())
-  lastLogin DateTime?
+  id             Int      @id @default(autoincrement())
+  email          String   @unique
+  password       String
+  fullName       String
+  emailVerified      Boolean  @default(false)
+  verificationToken  String?
+  verificationExpires DateTime?
+  createdAt          DateTime @default(now())
+  lastLogin          DateTime?
 
   // Relations
   clinics ClinicUser[]
@@ -84,9 +87,10 @@ model Clinic {
   createdAt DateTime @default(now())
 
   // Relations
-  users    ClinicUser[]
-  invites  Invite[]
-  patients Patient[]
+  users        ClinicUser[]
+  invites      Invite[]
+  patients     Patient[]
+  subscription Subscription?
 }
 
 model Role {
@@ -158,4 +162,40 @@ model Patient {
   @@index([clinicId])
   @@index([phone])
   @@index([fullName])
+}
+
+// Subscription Plans
+model Plan {
+  id            Int      @id @default(autoincrement())
+  name          String   @unique // STARTER, GROWTH, PRO
+  priceMonthly  Int      // Price in cents (e.g., 2900 = $29.00)
+  priceYearly   Int      // Price in cents (e.g., 29000 = $290.00)
+  maxDoctors    Int?     // null = unlimited
+  maxStaff      Int?     // null = unlimited
+  multiClinic   Boolean  @default(false)
+  features      String?  // JSON string of features
+  createdAt     DateTime @default(now())
+
+  // Relations
+  subscriptions Subscription[]
+}
+
+// Clinic Subscriptions
+model Subscription {
+  id          Int       @id @default(autoincrement())
+  clinicId    Int       @unique // One subscription per clinic
+  planId      Int
+  status      String    // trialing | active | past_due | canceled
+  trialEndsAt DateTime?
+  startsAt    DateTime  @default(now())
+  endsAt      DateTime? // null = active, set when canceled
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  @@index([clinicId])
+  @@index([status])
 }

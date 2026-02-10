@@ -11,9 +11,9 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 /**
  * POST /api/clinics/:clinicId/invite
  * Create an invitation to join a clinic
- * Requires: ADMIN or DOCTOR role
+ * Requires: ADMIN role
  */
-router.post('/:clinicId/invite', requireAuth, requireRole(['ADMIN', 'DOCTOR']), async (req, res) => {
+router.post('/:clinicId/invite', requireAuth, requireRole(['ADMIN']), async (req, res) => {
     try {
         const { clinicId } = req.params;
         const { email, role } = req.body;
@@ -97,12 +97,12 @@ router.post('/:clinicId/invite', requireAuth, requireRole(['ADMIN', 'DOCTOR']), 
 /**
  * POST /api/clinics/:clinicId/add-staff
  * Directly add a staff member (creates user if needed and links to clinic)
- * Requires: ADMIN or DOCTOR role
+ * Requires: ADMIN role
  */
-router.post('/:clinicId/add-staff', requireAuth, requireRole(['ADMIN', 'DOCTOR']), async (req, res) => {
+router.post('/:clinicId/add-staff', requireAuth, requireRole(['ADMIN']), async (req, res) => {
     try {
         const { clinicId } = req.params;
-        const { email, role, fullName } = req.body;
+        const { email, role, fullName, alsoMakeAdmin } = req.body;
 
         if (!email || !role || !fullName) {
             return res.status(400).json({ message: 'Email, role, and full name are required' });
@@ -162,6 +162,25 @@ router.post('/:clinicId/add-staff', requireAuth, requireRole(['ADMIN', 'DOCTOR']
             VALUES (?, ?, ?)
         `).run(user.id, clinicId, roleObj.id);
 
+        // If alsoMakeAdmin is true and the primary role isn't already ADMIN
+        if (alsoMakeAdmin && role !== 'ADMIN') {
+            const adminRole = db.prepare('SELECT id FROM Role WHERE name = ?').get('ADMIN');
+            if (adminRole) {
+                // Check if already has ADMIN role
+                const existingAdmin = db.prepare(`
+                    SELECT * FROM ClinicUser 
+                    WHERE userId = ? AND clinicId = ? AND roleId = ?
+                `).get(user.id, clinicId, adminRole.id);
+
+                if (!existingAdmin) {
+                    db.prepare(`
+                        INSERT INTO ClinicUser (userId, clinicId, roleId)
+                        VALUES (?, ?, ?)
+                    `).run(user.id, clinicId, adminRole.id);
+                }
+            }
+        }
+
         res.status(201).json({
             message: 'Staff member added successfully',
             user: {
@@ -182,7 +201,7 @@ router.post('/:clinicId/add-staff', requireAuth, requireRole(['ADMIN', 'DOCTOR']
  * GET /api/clinics/:clinicId/staff
  * Get all staff members for a clinic
  */
-router.get('/:clinicId/staff', requireAuth, requireClinicAccess, requireRole(['ADMIN', 'DOCTOR']), async (req, res) => {
+router.get('/:clinicId/staff', requireAuth, requireClinicAccess, requireRole(['ADMIN']), async (req, res) => {
     try {
         const staff = db.prepare(`
             SELECT u.id, u.email, u.fullName, u.tempPassword, 
@@ -207,42 +226,92 @@ router.get('/:clinicId/staff', requireAuth, requireClinicAccess, requireRole(['A
  */
 router.patch('/:clinicId/staff/:userId', requireAuth, requireClinicAccess, requireRole(['ADMIN']), async (req, res) => {
     try {
-        const { clinicId, userId } = req.params;
-        const { fullName, email, role } = req.body;
+        const clinicId = parseInt(req.params.clinicId);
+        const userId = parseInt(req.params.userId);
+        const { fullName, email, role, alsoMakeAdmin } = req.body;
 
-        // Start transaction
-        db.prepare('BEGIN').run();
+        console.log(`[UPDATE STAFF] Clinic: ${clinicId}, User: ${userId}`, { fullName, email, role, alsoMakeAdmin });
 
-        try {
+        const updateStaff = db.transaction((data) => {
+            const { fullName, email, userId, clinicId, role, alsoMakeAdmin } = data;
+
             // Update User details if provided
             if (fullName || email) {
-                db.prepare(`
+                const userUpdate = db.prepare(`
                     UPDATE User 
                     SET fullName = COALESCE(?, fullName),
                         email = COALESCE(?, email)
                     WHERE id = ?
                 `).run(fullName, email, userId);
+                console.log(` - User record updated: ${userUpdate.changes} row(s)`);
             }
 
-            // Update Role if provided
+            // Update Role and Admin permission if provided
+            const adminRoleObj = db.prepare('SELECT id FROM Role WHERE name = ?').get('ADMIN');
+            console.log(` - Admin Role ID: ${adminRoleObj?.id}`);
+
             if (role) {
-                const roleObj = db.prepare('SELECT id FROM Role WHERE name = ?').get(role);
-                if (!roleObj) {
-                    throw new Error('Role not found');
+                const newRoleObj = db.prepare('SELECT id FROM Role WHERE id = ? OR name = ?').get(role, role);
+                if (!newRoleObj) throw new Error('Role not found');
+                console.log(` - New Primary Role: ${newRoleObj.name} (${newRoleObj.id})`);
+
+                // If setting a primary role (Doctor or Receptionist)
+                if (newRoleObj.name !== 'ADMIN') {
+                    // Delete any existing primary roles in this clinic to avoid duplicates/conflicts
+                    const del = db.prepare(`
+                        DELETE FROM ClinicUser 
+                        WHERE userId = ? AND clinicId = ? AND roleId IN (
+                            SELECT id FROM Role WHERE name IN ('DOCTOR', 'RECEPTIONIST')
+                        )
+                    `).run(userId, clinicId);
+                    console.log(` - Previous primary roles deleted: ${del.changes}`);
+
+                    // Insert new primary role
+                    db.prepare(`
+                        INSERT OR IGNORE INTO ClinicUser (userId, clinicId, roleId)
+                        VALUES (?, ?, ?)
+                    `).run(userId, clinicId, newRoleObj.id);
+                    console.log(` - Primary role assigned`);
+                } else {
+                    // If they specifically set role to ADMIN, just ensure it exists
+                    db.prepare(`
+                        INSERT OR IGNORE INTO ClinicUser (userId, clinicId, roleId)
+                        VALUES (?, ?, ?)
+                    `).run(userId, clinicId, newRoleObj.id);
+                    console.log(` - Admin role ensured`);
                 }
-                db.prepare(`
-                    UPDATE ClinicUser 
-                    SET roleId = ?
-                    WHERE userId = ? AND clinicId = ?
-                `).run(roleObj.id, userId, clinicId);
             }
 
-            db.prepare('COMMIT').run();
-            res.json({ message: 'Staff member updated successfully' });
-        } catch (innerError) {
-            db.prepare('ROLLBACK').run();
-            throw innerError;
-        }
+            // Handle alsoMakeAdmin toggle
+            if (typeof alsoMakeAdmin !== 'undefined' && adminRoleObj) {
+                if (alsoMakeAdmin) {
+                    const result = db.prepare(`
+                        INSERT OR IGNORE INTO ClinicUser (userId, clinicId, roleId)
+                        VALUES (?, ?, ?)
+                    `).run(userId, clinicId, adminRoleObj.id);
+                    console.log(` - Admin role granted (alsoMakeAdmin): ${result.changes > 0 ? 'New' : 'Already existed'}`);
+                } else {
+                    // Only remove if it's not the ONLY role or if they have another primary role
+                    // But usually, an admin is also a DOCTOR or RECEPTIONIST
+                    const result = db.prepare(`
+                        DELETE FROM ClinicUser 
+                        WHERE userId = ? AND clinicId = ? AND roleId = ?
+                    `).run(userId, clinicId, adminRoleObj.id);
+                    console.log(` - Admin role revoked: ${result.changes} row(s)`);
+                }
+            }
+        });
+
+        updateStaff({
+            fullName,
+            email,
+            userId,
+            clinicId,
+            role,
+            alsoMakeAdmin: req.body.alsoMakeAdmin
+        });
+
+        res.json({ message: 'Staff member updated successfully' });
     } catch (error) {
         console.error('Error updating staff:', error);
         res.status(error.message === 'Role not found' ? 404 : 500).json({

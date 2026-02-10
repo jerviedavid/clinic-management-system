@@ -11,6 +11,7 @@ import {
 } from 'react-icons/fa6'
 import api from '../../utils/api'
 import ProfileModal from './ProfileModal'
+import SubscriptionBanner from '../../components/SubscriptionBanner'
 
 export default function Doctor() {
   const { currentUser, userRole, isAdmin } = useAuth()
@@ -102,6 +103,9 @@ export default function Doctor() {
           </div>
         </div>
       </header>
+
+      {/* Subscription Banner */}
+      <SubscriptionBanner />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto p-6">
@@ -279,9 +283,15 @@ export default function Doctor() {
               <div>
                 <p className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">System Role</p>
                 <span className="px-2 py-1 bg-blue-500/10 text-blue-400 rounded text-[10px] font-bold uppercase border border-blue-500/20">
-                  {userRole}
+                  {userRole}{isAdmin && userRole !== 'admin' ? ' (Admin)' : ''}
                 </span>
               </div>
+              {isAdmin && (
+                <div>
+                  <p className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">Administrative Rights</p>
+                  <p className="text-blue-400 text-xs font-bold uppercase">Authorized Administrator</p>
+                </div>
+              )}
               <div>
                 <p className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">Status</p>
                 <EmailVerificationStatus />

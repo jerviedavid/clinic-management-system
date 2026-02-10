@@ -7,13 +7,14 @@ import dataRoutes from './routes/data.js';
 import clinicsRoutes from './routes/clinics.js';
 import superadminRoutes from './routes/superadmin.js';
 import patientsRoutes from './routes/patients.js';
+import billingRoutes from './routes/billing.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.BACKEND_PORT || 5000;
 
-const BANNER_VERSION = "2026-01-28-V5";
+const BANNER_VERSION = "2026-02-02-V2";
 
 app.use(cors({
   origin: 'http://localhost:5173', // Vite default port
@@ -32,6 +33,7 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/billing', billingRoutes);
 app.use('/api/clinics', clinicsRoutes);
 app.use('/api/superadmin', superadminRoutes);
 app.use('/api/patients', patientsRoutes);

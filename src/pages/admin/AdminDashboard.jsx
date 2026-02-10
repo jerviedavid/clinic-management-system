@@ -8,15 +8,21 @@ import {
     FaCircleCheck, FaClock, FaCircleXmark, FaEye, FaEyeSlash, FaCopy,
     FaPenToSquare, FaXmark, FaFloppyDisk, FaTrashCan, FaRotate, FaCircleInfo
 } from 'react-icons/fa6'
+import { TrendingUp, AlertTriangle, CreditCard } from 'lucide-react'
 import api from '../../utils/api'
 import { toast } from 'react-hot-toast'
+import UpgradeModal from '../../components/UpgradeModal'
 
 export default function AdminDashboard() {
-    const { currentUser, selectedClinic, roles, isSuperAdmin } = useAuth()
+    const {
+        currentUser, selectedClinic, availableClinics, roles, isSuperAdmin, refreshUser,
+        subscription, usage, canAddDoctor, canAddStaff, currentPlan, isTrialing, trialDaysLeft
+    } = useAuth()
     const [inviteData, setInviteData] = useState({
         email: '',
         role: 'RECEPTIONIST',
-        fullName: ''
+        fullName: '',
+        alsoMakeAdmin: false
     })
     const [generatedPassword, setGeneratedPassword] = useState(null)
     const [isSending, setIsSending] = useState(false)
@@ -30,6 +36,8 @@ export default function AdminDashboard() {
     const [editingStaff, setEditingStaff] = useState(null)
     const [viewingStaff, setViewingStaff] = useState(null)
     const [isProcessing, setIsProcessing] = useState(false)
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+    const [upgradeReason, setUpgradeReason] = useState({ feature: '', requiredPlan: '' })
 
     useEffect(() => {
         fetchStaff()
@@ -65,23 +73,54 @@ export default function AdminDashboard() {
             return
         }
 
+        // Check staff limits before adding
+        const isDoctorRole = inviteData.role === 'DOCTOR'
+        if (isDoctorRole && !canAddDoctor()) {
+            setUpgradeReason({
+                feature: 'Additional Doctors',
+                requiredPlan: 'GROWTH or PRO'
+            })
+            setShowUpgradeModal(true)
+            return
+        }
+
+        if (!canAddStaff()) {
+            setUpgradeReason({
+                feature: 'Additional Staff Members',
+                requiredPlan: 'GROWTH or PRO'
+            })
+            setShowUpgradeModal(true)
+            return
+        }
+
         setIsSending(true)
         setGeneratedPassword(null)
         try {
             const response = await api.post(`/clinics/${selectedClinic.clinicId}/add-staff`, {
                 email: inviteData.email,
                 role: inviteData.role,
-                fullName: inviteData.fullName
+                fullName: inviteData.fullName,
+                alsoMakeAdmin: inviteData.alsoMakeAdmin
             })
 
             toast.success('Staff member added successfully!')
             if (response.data.temporaryPassword) {
                 setGeneratedPassword(response.data.temporaryPassword)
             }
-            setInviteData({ email: '', role: 'RECEPTIONIST', fullName: '' })
+            setInviteData({ email: '', role: 'RECEPTIONIST', fullName: '', alsoMakeAdmin: false })
             fetchStaff()
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to add staff member')
+            const errorMsg = error.response?.data?.message
+            if (errorMsg && errorMsg.includes('upgrade')) {
+                toast.error(errorMsg)
+                setUpgradeReason({
+                    feature: inviteData.role === 'DOCTOR' ? 'Additional Doctors' : 'Additional Staff',
+                    requiredPlan: 'Higher Plan'
+                })
+                setShowUpgradeModal(true)
+            } else {
+                toast.error(errorMsg || 'Failed to add staff member')
+            }
         } finally {
             setIsSending(false)
         }
@@ -108,6 +147,9 @@ export default function AdminDashboard() {
         try {
             await api.patch(`/clinics/${selectedClinic.clinicId}/staff/${editingStaff.id}`, editingStaff)
             toast.success('Staff member updated!')
+            if (editingStaff.id === currentUser.id) {
+                refreshUser()
+            }
             setEditingStaff(null)
             fetchStaff()
         } catch (error) {
@@ -179,7 +221,25 @@ export default function AdminDashboard() {
                             </Link>
                         )}
                     </div>
-                    <LogoutButton />
+                    <div className="flex items-center gap-4">
+                        {isTrialing && (
+                            <Link
+                                to="/settings/billing"
+                                className="px-3 py-1.5 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-lg border border-yellow-500/30 transition-colors flex items-center space-x-2 text-sm"
+                            >
+                                <AlertTriangle className="w-4 h-4" />
+                                <span>{trialDaysLeft} days left in trial</span>
+                            </Link>
+                        )}
+                        <Link
+                            to="/settings/billing"
+                            className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition-colors flex items-center space-x-2 text-sm"
+                        >
+                            <CreditCard className="w-4 h-4" />
+                            <span>{currentPlan}</span>
+                        </Link>
+                        <LogoutButton />
+                    </div>
                 </div>
             </header>
 
@@ -188,10 +248,39 @@ export default function AdminDashboard() {
                     {/* Left Column: Add Staff */}
                     <div className="lg:col-span-1 space-y-6">
                         <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
-                            <div className="flex items-center space-x-3 mb-6">
-                                <FaUserPlus className="w-6 h-6 text-green-400" />
-                                <h2 className="text-xl font-bold">Add Staff Member</h2>
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center space-x-3">
+                                    <FaUserPlus className="w-6 h-6 text-green-400" />
+                                    <h2 className="text-xl font-bold">Add Staff Member</h2>
+                                </div>
                             </div>
+
+                            {/* Usage Limits */}
+                            {usage && subscription && (
+                                <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl space-y-2">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-400">Doctors:</span>
+                                        <span className={`font-semibold ${usage.doctors >= (subscription.plan?.maxDoctors || Infinity) ? 'text-red-400' : 'text-blue-400'}`}>
+                                            {usage.doctors} / {subscription.plan?.maxDoctors || '∞'}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-400">Total Staff:</span>
+                                        <span className={`font-semibold ${usage.totalStaff >= (subscription.plan?.maxStaff || Infinity) ? 'text-red-400' : 'text-blue-400'}`}>
+                                            {usage.totalStaff} / {subscription.plan?.maxStaff || '∞'}
+                                        </span>
+                                    </div>
+                                    {(usage.doctors >= (subscription.plan?.maxDoctors || Infinity) ||
+                                        usage.totalStaff >= (subscription.plan?.maxStaff || Infinity)) && (
+                                            <div className="pt-2 border-t border-blue-500/20">
+                                                <p className="text-xs text-yellow-400 flex items-center gap-2">
+                                                    <AlertTriangle className="w-3 h-3" />
+                                                    You've reached your plan limit. Upgrade to add more staff.
+                                                </p>
+                                            </div>
+                                        )}
+                                </div>
+                            )}
 
                             <form onSubmit={handleAddStaff} className="space-y-4">
                                 <div>
@@ -239,8 +328,21 @@ export default function AdminDashboard() {
                                     >
                                         <option value="RECEPTIONIST" className="bg-slate-800">Receptionist</option>
                                         <option value="DOCTOR" className="bg-slate-800">Doctor</option>
-                                        <option value="ADMIN" className="bg-slate-800">Admin</option>
                                     </select>
+                                </div>
+
+                                <div className="flex items-center space-x-2 mt-4 bg-blue-500/10 border border-blue-500/20 p-3 rounded-xl transition-all">
+                                    <input
+                                        type="checkbox"
+                                        id="alsoMakeAdmin"
+                                        checked={inviteData.alsoMakeAdmin || false}
+                                        onChange={(e) => setInviteData({ ...inviteData, alsoMakeAdmin: e.target.checked })}
+                                        className="w-4 h-4 rounded bg-white/5 border-white/10 text-blue-500 focus:ring-blue-500 cursor-pointer"
+                                    />
+                                    <label htmlFor="alsoMakeAdmin" className="text-sm font-medium text-slate-300 cursor-pointer flex items-center space-x-2 flex-1">
+                                        <FaUserShield className="w-4 h-4 text-blue-400" />
+                                        <span>Also grant Admin permissions</span>
+                                    </label>
                                 </div>
 
                                 <button
@@ -371,12 +473,16 @@ export default function AdminDashboard() {
                                                                 </button>
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => setEditingStaff({
-                                                                        id: member.id,
-                                                                        fullName: member.fullName,
-                                                                        email: member.email,
-                                                                        role: member.roleName || member.role
-                                                                    })}
+                                                                    onClick={() => {
+                                                                        const roles = member.roleName ? member.roleName.split(', ') : [];
+                                                                        setEditingStaff({
+                                                                            id: member.id,
+                                                                            fullName: member.fullName,
+                                                                            email: member.email,
+                                                                            role: roles.find(r => r !== 'ADMIN') || 'RECEPTIONIST',
+                                                                            alsoMakeAdmin: roles.includes('ADMIN')
+                                                                        })
+                                                                    }}
                                                                     className="p-2 hover:bg-white/10 rounded-lg transition-colors text-blue-400"
                                                                     title="Edit Staff"
                                                                 >
@@ -576,8 +682,22 @@ export default function AdminDashboard() {
                                 >
                                     <option value="RECEPTIONIST" className="bg-slate-800">Receptionist</option>
                                     <option value="DOCTOR" className="bg-slate-800">Doctor</option>
-                                    <option value="ADMIN" className="bg-slate-800">Admin</option>
                                 </select>
+                            </div>
+                            <div>
+                                <div className="flex items-center space-x-2 mt-2 bg-blue-500/10 border border-blue-500/20 p-3 rounded-xl">
+                                    <input
+                                        type="checkbox"
+                                        id="editAlsoMakeAdmin"
+                                        checked={editingStaff.alsoMakeAdmin || false}
+                                        onChange={(e) => setEditingStaff({ ...editingStaff, alsoMakeAdmin: e.target.checked })}
+                                        className="w-4 h-4 rounded bg-white/5 border-white/10 text-blue-500 focus:ring-blue-500 cursor-pointer"
+                                    />
+                                    <label htmlFor="editAlsoMakeAdmin" className="text-sm font-medium text-slate-300 cursor-pointer flex items-center space-x-2 flex-1">
+                                        <FaUserShield className="w-4 h-4 text-blue-400" />
+                                        <span>Grant Admin permissions</span>
+                                    </label>
+                                </div>
                             </div>
                             <div className="pt-4 flex gap-3">
                                 <button
@@ -669,6 +789,15 @@ export default function AdminDashboard() {
                     </div>
                 </div>
             )}
+
+            {/* Upgrade Modal */}
+            <UpgradeModal
+                isOpen={showUpgradeModal}
+                onClose={() => setShowUpgradeModal(false)}
+                feature={upgradeReason.feature}
+                requiredPlan={upgradeReason.requiredPlan}
+                currentPlan={currentPlan}
+            />
         </div>
     )
 }

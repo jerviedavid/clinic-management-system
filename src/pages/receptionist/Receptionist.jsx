@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import LogoutButton from '../../components/LogoutButton'
 import EmailVerificationStatus from '../../components/EmailVerificationStatus'
-import { Bell, UserPlus, CalendarCheck, Users, Calendar, FileText, FileDown, Hash, DollarSign } from 'lucide-react'
+import { Bell, UserPlus, CalendarCheck, Users, Calendar, FileText, FileDown, Hash, DollarSign, Shield } from 'lucide-react'
 import api from '../../utils/api'
 
 export default function Receptionist() {
-  const { currentUser, userRole } = useAuth()
+  const { currentUser, userRole, isAdmin, roles, refreshUser } = useAuth()
   const [appointments, setAppointments] = useState([])
   const [todayAppointments, setTodayAppointments] = useState(0)
   const [todayPrescriptions, setTodayPrescriptions] = useState(0)
@@ -61,7 +61,7 @@ export default function Receptionist() {
               <h1 className="text-xl font-bold">{clinicInfo?.name || 'Receptionist Dashboard'}</h1>
               <p className="text-sm text-slate-400">
                 {clinicInfo?.address ? `${clinicInfo.address} | ` : ''}
-                Welcome, {currentUser?.fullName || 'Receptionist'}
+                Welcome, {currentUser?.fullName || 'Receptionist'} <span className="text-[10px] text-green-500 font-mono">(FIX LIVE)</span>
               </p>
             </div>
           </div>
@@ -134,6 +134,21 @@ export default function Receptionist() {
             <p className="text-sm text-slate-400 mt-2">Patient records</p>
             <p className="text-xs text-orange-400 mt-2">Click to manage patients →</p>
           </Link>
+
+          {isAdmin && (
+            <Link to="/admin" className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-xl hover:bg-white/10 transition-colors cursor-pointer">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <Shield className="w-6 h-6 text-red-400" />
+                  <h3 className="text-lg font-semibold">Manage Staff</h3>
+                </div>
+                <Users className="w-4 h-4 text-red-400" />
+              </div>
+              <p className="text-3xl font-bold text-red-400">Doctors</p>
+              <p className="text-sm text-slate-400 mt-2">Staff & Roles</p>
+              <p className="text-xs text-red-400 mt-2">Click to manage doctors →</p>
+            </Link>
+          )}
         </div>
 
         {/* Quick Actions */}
@@ -229,6 +244,18 @@ export default function Receptionist() {
                 </div>
               </div>
             </Link>
+
+            {isAdmin && (
+              <Link to="/admin" className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 hover:bg-red-500/20 transition-colors">
+                <div className="flex items-center space-x-3">
+                  <Shield className="w-5 h-5 text-red-400" />
+                  <div>
+                    <h3 className="font-semibold text-red-400">Manage Doctors</h3>
+                    <p className="text-sm text-slate-400">Admin Panel Access</p>
+                  </div>
+                </div>
+              </Link>
+            )}
           </div>
         </div>
 
@@ -242,15 +269,35 @@ export default function Receptionist() {
             </div>
             <div>
               <p className="text-slate-400 text-sm">Role</p>
-              <p className="text-cyan-400 font-medium capitalize">{userRole}</p>
+              <p className="text-cyan-400 font-medium capitalize">
+                {userRole}{isAdmin && userRole !== 'admin' ? ' (Admin)' : ''}
+              </p>
             </div>
             <div>
               <p className="text-slate-400 text-sm">Full Name</p>
               <p className="text-white font-medium">{currentUser?.fullName}</p>
             </div>
             <div>
+              <p className="text-slate-400 text-sm">Admin Access</p>
+              <div className="flex items-center space-x-2">
+                <p className={isAdmin ? "text-cyan-400 font-bold" : "text-slate-500"}>
+                  {isAdmin ? 'Enabled' : 'Disabled'}
+                </p>
+                <button
+                  onClick={() => refreshUser()}
+                  className="text-[10px] bg-white/10 hover:bg-white/20 px-2 py-0.5 rounded transition-colors text-slate-400 hover:text-white"
+                >
+                  Refresh Context
+                </button>
+              </div>
+            </div>
+            <div>
               <p className="text-slate-400 text-sm">Email Verified</p>
               <EmailVerificationStatus />
+            </div>
+            <div>
+              <p className="text-slate-400 text-sm">Raw Roles (Debug)</p>
+              <p className="text-xs font-mono text-slate-500">{JSON.stringify(roles)}</p>
             </div>
           </div>
 

@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { FaHospital, FaEnvelope, FaLock, FaEye, FaEyeSlash, FaArrowRight, FaStar, FaShieldHalved, FaUserDoctor, FaUserTie } from 'react-icons/fa6'
+import { FcGoogle } from 'react-icons/fc'
 import { useAuth } from '../../hooks/useAuth'
+import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google'
 
 export default function Login() {
   const navigate = useNavigate()
-  const { login } = useAuth()
+  const { login, googleSignup } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -49,7 +51,38 @@ export default function Login() {
     }
   }
 
-  return (
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setIsLoading(true)
+    setError('')
+    try {
+      const result = await googleSignup(credentialResponse.credential)
+      // Redirect based on roles
+      const userRoles = result.roles || []
+      if (userRoles.includes('SUPER_ADMIN')) {
+        navigate('/master')
+      } else if (userRoles.includes('DOCTOR')) {
+        navigate('/doctor')
+      } else if (userRoles.includes('RECEPTIONIST')) {
+        navigate('/receptionist')
+      } else {
+        navigate('/')
+      }
+    } catch (error) {
+      console.error('Google login error:', error)
+      let errorMessage = 'Failed to sign in with Google. Please try again.'
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message
+      }
+      setError(errorMessage)
+      setIsLoading(false)
+    }
+  }
+
+  const handleGoogleError = () => {
+    setError('Google sign in was unsuccessful. Please try again.')
+  }
+
+  const LoginContent = () => (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white antialiased relative overflow-hidden">
       {/* Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -167,6 +200,19 @@ export default function Login() {
                   </div>
                 )}
               </button>
+
+              {/* Google Sign In Button */}
+              <div className="w-full">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  useOneTap={false}
+                  theme="filled_black"
+                  size="large"
+                  text="signin_with"
+                  width="100%"
+                />
+              </div>
             </form>
 
             {/* Divider */}
@@ -200,5 +246,11 @@ export default function Login() {
         </div>
       </div>
     </div>
+  )
+
+  return (
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+      <LoginContent />
+    </GoogleOAuthProvider>
   )
 }

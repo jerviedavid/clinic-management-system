@@ -5,13 +5,13 @@
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Site-blue?style=for-the-badge&logo=vercel)](https://life-clinic-management-system.vercel.app)
 [![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com)
 [![React](https://img.shields.io/badge/React-19.1.1-61DAFB?style=for-the-badge&logo=react)](https://reactjs.org/)
-[![Firebase](https://img.shields.io/badge/Firebase-12.1.0-FFCA28?style=for-the-badge&logo=firebase)](https://firebase.google.com/)
+[![Prisma](https://img.shields.io/badge/Prisma-5.22.0-2D3748?style=for-the-badge&logo=prisma)](https://www.prisma.io/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-4.1.12-38B2AC?style=for-the-badge&logo=tailwind-css)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
 > 🚀 **Live Application**: [life-clinic-management-system.vercel.app](https://life-clinic-management-system.vercel.app)
 
-A modern, secure, and feature-rich clinic management system built with React 19, Firebase, and Tailwind CSS. Streamline your healthcare operations with comprehensive patient management, appointment scheduling, prescription management, billing systems, and role-based access control.
+A modern, secure, and feature-rich clinic management system built with React 19, Node.js/Express, Prisma, and Tailwind CSS. Streamline your healthcare operations with comprehensive patient management, appointment scheduling, prescription management, billing systems, and role-based access control.
 
 ## 🛠️ Tech Stack
 
@@ -24,9 +24,10 @@ Our clinic management system is built with cutting-edge technologies to ensure p
 ![JavaScript](https://img.shields.io/badge/JavaScript-ES6+-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
 
 ### **Backend & Database**
-![Firebase](https://img.shields.io/badge/Firebase-12.1.0-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)
-![Firestore](https://img.shields.io/badge/Firestore-NoSQL-FF6B6B?style=for-the-badge&logo=firebase&logoColor=white)
-![Authentication](https://img.shields.io/badge/Firebase_Auth-Secure-FF6B6B?style=for-the-badge&logo=firebase&logoColor=white)
+![Express](https://img.shields.io/badge/Express-5.2.1-000000?style=for-the-badge&logo=express&logoColor=white)
+![Prisma](https://img.shields.io/badge/Prisma-5.22.0-2D3748?style=for-the-badge&logo=prisma&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
+![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)
 
 ### **Development Tools**
 ![ESLint](https://img.shields.io/badge/ESLint-9.33.0-4B32C3?style=for-the-badge&logo=eslint&logoColor=white)
@@ -41,12 +42,12 @@ Our clinic management system is built with cutting-edge technologies to ensure p
 ## ✨ Features
 
 ### 🔐 **Authentication & Security**
-- **Firebase Authentication** with email/password
-- **Email Verification** for account activation
+- **JWT Authentication** with email/password
+- **Secure Password Hashing** with bcrypt
 - **Password Reset** functionality
-- **Role-Based Access Control** (Doctor & Receptionist)
+- **Role-Based Access Control** (Doctor, Receptionist, Admin, Super Admin)
 - **Protected Routes** for unauthorized access prevention
-- **Secure Firestore Rules** for data protection
+- **HTTP-only Cookies** for token storage
 
 ### 👨‍⚕️ **Doctor Dashboard**
 - **Real-time Statistics** (appointments, waiting patients, prescriptions)
@@ -74,7 +75,7 @@ Our clinic management system is built with cutting-edge technologies to ensure p
 ### 📱 **Modern UI/UX**
 - **Responsive Design** for all devices
 - **Beautiful Gradients** and modern aesthetics
-- **Real-time Updates** with Firebase listeners
+- **Efficient Data Updates** with REST API
 - **Interactive Components** with smooth animations
 - **Toast Notifications** for user feedback
 - **Search & Filter** capabilities throughout
@@ -112,7 +113,6 @@ Here's a comprehensive preview of all the key features and interfaces in the Lif
 ### Prerequisites
 - Node.js (v16 or higher)
 - npm or yarn
-- Firebase project
 
 ### 1. Clone and Install
 ```bash
@@ -121,87 +121,36 @@ cd clinic-management-system
 npm install
 ```
 
-### 2. Firebase Setup
-1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Create a new project or select existing one
-3. Enable **Authentication** (Email/Password)
-4. Enable **Firestore Database** (test mode)
-5. Get your Firebase configuration
+### 2. Database Setup
+1. Initialize the Prisma database:
+   ```bash
+   npx prisma generate
+   npx prisma db push
+   ```
+2. Seed initial data (roles and plans):
+   ```bash
+   npm run seed
+   ```
 
 ### 3. Environment Configuration
    ```bash
    cp env.example.txt .env
    ```
 
-Update `.env` with your Firebase config:
+Update `.env` with your configuration:
    ```env
-VITE_FIREBASE_API_KEY=your_api_key
-   VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-   VITE_FIREBASE_PROJECT_ID=your_project_id
-   VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-   VITE_FIREBASE_APP_ID=your_app_id
+   JWT_SECRET=your_super_secret_key_here
+   BACKEND_PORT=5000
    ```
 
-### 4. Firebase Security Rules Configuration
-
-**Important**: You must configure Firestore security rules to ensure proper data access control.
-
-1. **Go to Firestore Database** in your Firebase Console
-2. **Click on "Rules" tab**
-3. **Replace the default rules** with the following:
-
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // Staff data access control
-    match /staffData/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // Appointments access control
-    match /appointments/{document} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && 
-        (resource == null || resource.data.createdBy == request.auth.uid);
-    }
-    
-    // Prescriptions access control
-    match /prescriptions/{document} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && 
-        (resource == null || resource.data.doctorId == request.auth.uid);
-    }
-    
-    // Medicines access control
-    match /medicines/{document} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
-    }
-    
-    // Invoices access control
-    match /invoices/{document} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && 
-        (resource == null || resource.data.createdBy == request.auth.uid);
-    }
-  }
-}
-```
-
-4. **Click "Publish"** to save the rules
-
-**Why These Rules Matter:**
-- **Security**: Prevents unauthorized access to sensitive data
-- **Role-based Access**: Ensures users can only access their own data
-- **Data Protection**: Protects patient information and medical records
-- **Compliance**: Meets healthcare data security requirements
-
-### 5. Run Development Server
+### 4. Run Development Server
 ```bash
-npm run dev
+# Run both frontend and backend
+npm run dev:all
+
+# Or run separately:
+npm run dev      # Frontend only (port 5173)
+npm run server   # Backend only (port 5000)
 ```
 
 Visit `http://localhost:5173` to see your application!
@@ -217,8 +166,6 @@ src/
 │   └── TokenDisplay.jsx
 ├── contexts/           # React context providers
 │   └── AuthContext.jsx
-├── firebase/           # Firebase configuration
-│   └── config.js
 ├── hooks/              # Custom React hooks
 │   └── useAuth.js
 ├── pages/              # Application pages
@@ -240,16 +187,35 @@ src/
 │   │   └── token/
 │   └── Home.jsx
 ├── utils/              # Utility functions
-│   └── authUtils.js
+│   └── api.js
 ├── App.jsx             # Main application component
 └── main.jsx            # Application entry point
+
+server/
+├── routes/             # API routes
+│   ├── auth.js
+│   ├── clinics.js
+│   ├── patients.js
+│   └── billing.js
+├── middleware/         # Express middleware
+│   ├── auth.js
+│   └── subscription.js
+├── db.js               # Database connection
+└── index.js            # Server entry point
+
+prisma/
+├── schema.prisma       # Database schema
+├── seed.js             # Database seeding
+└── migrations/         # Database migrations
 ```
 
 ## 🔧 Available Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start development server |
+| `npm run dev` | Start frontend development server |
+| `npm run server` | Start backend server with auto-reload |
+| `npm run dev:all` | Start both frontend and backend |
 | `npm run build` | Build for production |
 | `npm run preview` | Preview production build |
 | `npm run lint` | Run ESLint for code quality |
@@ -262,23 +228,14 @@ This application is deployed on **Vercel** and is live at:
 
 ## 🔒 Security Features
 
-- **Email verification** required for account activation
+- **JWT-based authentication** with HTTP-only cookies
+- **Password hashing** with bcrypt
 - **Role-based access control** with protected routes
-- **Secure password reset** via email
-- **Firestore security rules** for data protection
+- **Secure password reset** functionality
+- **Protected API endpoints** with middleware
 - **Authentication state management** with React Context
-- **Protected API endpoints** and data access
 
-## 📧 Email Verification System
-
-The system uses Firebase's built-in email verification:
-
-1. **Automatic Email**: Sent when users sign up
-2. **Verification Status**: Real-time display on dashboard
-3. **Manual Refresh**: Users can check verification status
-4. **Reliable System**: Direct integration with Firebase Auth
-
-## 🛠️ Tech Stack
+## ️ Tech Stack
 
 ### Frontend
 - **React 19** - Modern React with latest features
@@ -289,9 +246,11 @@ The system uses Firebase's built-in email verification:
 - **Lucide React** - Beautiful icons
 
 ### Backend & Database
-- **Firebase Authentication** - User management
-- **Firestore** - NoSQL cloud database
-- **Firebase Security Rules** - Data access control
+- **Node.js/Express** - REST API server
+- **Prisma ORM** - Type-safe database access
+- **SQLite** - Lightweight SQL database
+- **JWT** - Secure authentication tokens
+- **bcrypt** - Password hashing
 
 ### Development Tools
 - **ESLint** - Code quality and consistency
@@ -305,12 +264,13 @@ The system uses Firebase's built-in email verification:
 - **Touch-friendly** interface
 - **Cross-browser** compatibility
 
-## 🔄 Real-time Features
+## 🔄 Key Features
 
-- **Live Updates** with Firebase listeners
+- **REST API** with Express.js
 - **Real-time Statistics** on dashboards
 - **Instant Notifications** for actions
-- **Live Patient Queue** management
+- **Patient Queue** management
+- **Subscription Management** with trial periods
 
 ## 📊 Data Management
 
@@ -348,10 +308,11 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ## 🙏 Acknowledgments
 
-- **Firebase** for backend services
+- **Prisma** for the excellent ORM
 - **Vercel** for hosting and deployment
 - **React Team** for the amazing framework
 - **Tailwind CSS** for the beautiful styling system
+- **Express.js** for the robust backend framework
 - **Open Source Community** for inspiration and tools
 
 ## 📞 Support
