@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { FaHospital, FaEnvelope, FaLock, FaEye, FaEyeSlash, FaArrowRight, FaStar, FaShieldHalved, FaUserDoctor, FaUserTie } from 'react-icons/fa6'
+import { useState, useEffect } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { FaHospital, FaEnvelope, FaLock, FaEye, FaEyeSlash, FaArrowRight, FaStar, FaShieldHalved, FaUserDoctor, FaUserTie, FaCircleCheck, FaCircleExclamation } from 'react-icons/fa6'
 import { FcGoogle } from 'react-icons/fc'
 import { useAuth } from '../../hooks/useAuth'
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google'
@@ -8,11 +8,23 @@ import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google'
 export default function Login() {
   const navigate = useNavigate()
   const { login, googleSignup } = useAuth()
+  const [searchParams] = useSearchParams()
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [verificationSuccess, setVerificationSuccess] = useState(false)
+  const [emailNotVerifiedWarning, setEmailNotVerifiedWarning] = useState(false)
+
+  useEffect(() => {
+    // Check if user was redirected here after email verification
+    if (searchParams.get('verified') === 'true') {
+      setVerificationSuccess(true)
+      // Hide message after 8 seconds
+      setTimeout(() => setVerificationSuccess(false), 8000)
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -26,6 +38,14 @@ export default function Login() {
 
     try {
       const result = await login(email, password)
+
+      // Check if email is verified
+      if (result.user && !result.user.emailVerified) {
+        setEmailNotVerifiedWarning(true)
+        setIsLoading(false)
+        // Still allow login but show warning
+        // Optionally, you can prevent login by returning here
+      }
 
       // Redirect based on first role
       const userRoles = result.selectedClinic?.roles || []
@@ -173,6 +193,31 @@ export default function Login() {
                   </Link>
                 </div>
               </div>
+
+              {/* Success Message for Email Verification */}
+              {verificationSuccess && (
+                <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 text-center">
+                  <div className="flex items-center justify-center space-x-2 text-green-400">
+                    <FaCircleCheck className="w-5 h-5" />
+                    <span className="font-medium">Email verified successfully! You can now login.</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Warning for Unverified Email */}
+              {emailNotVerifiedWarning && (
+                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+                  <div className="flex items-start space-x-3">
+                    <FaCircleExclamation className="w-5 h-5 text-yellow-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-yellow-400 font-medium text-sm mb-1">Email not verified</p>
+                      <p className="text-yellow-300/80 text-xs leading-relaxed">
+                        Please check your inbox and verify your email to access all features.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Error Message */}
               {error && (

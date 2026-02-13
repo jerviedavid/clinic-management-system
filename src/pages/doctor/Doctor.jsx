@@ -9,6 +9,7 @@ import {
   FaPenToSquare, FaStethoscope, FaIdCard, FaMoneyBillWave, FaClock,
   FaGraduationCap, FaBriefcase
 } from 'react-icons/fa6'
+import { User } from 'lucide-react'
 import api from '../../utils/api'
 import ProfileModal from './ProfileModal'
 import SubscriptionBanner from '../../components/SubscriptionBanner'
@@ -17,6 +18,7 @@ export default function Doctor() {
   const { currentUser, userRole, isAdmin } = useAuth()
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
   const [profileData, setProfileData] = useState(null)
+  const [profileImage, setProfileImage] = useState(null)
   const [stats, setStats] = useState({
     todayAppointments: 0,
     waitingPatients: 0,
@@ -55,6 +57,7 @@ export default function Doctor() {
       });
 
       setProfileData(profileRes.data.doctorProfile);
+      setProfileImage(profileRes.data.user?.profileImage || null);
     } catch (error) {
       console.error('Error fetching data:', error);
       setStats(prev => ({ ...prev, loading: false }));
@@ -73,9 +76,17 @@ export default function Doctor() {
       <header className="bg-white/5 backdrop-blur-xl border-b border-white/10 p-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center">
-              <FaUserDoctor className="w-6 h-6 text-blue-400" />
-            </div>
+            {profileImage ? (
+              <img 
+                src={profileImage} 
+                alt={currentUser?.fullName}
+                className="w-10 h-10 rounded-xl object-cover border border-blue-500/30"
+              />
+            ) : (
+              <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center">
+                <FaUserDoctor className="w-6 h-6 text-blue-400" />
+              </div>
+            )}
             <div>
               <h1 className="text-xl font-bold">Doctor Dashboard</h1>
               <p className="text-sm text-slate-400">Welcome, {currentUser?.fullName || 'Doctor'}</p>
@@ -271,6 +282,18 @@ export default function Doctor() {
                 <FaPenToSquare className="w-4 h-4" />
               </button>
             </div>
+            
+            {/* Profile Image */}
+            {profileImage && (
+              <div className="flex justify-center mb-6">
+                <img 
+                  src={profileImage} 
+                  alt={currentUser?.fullName}
+                  className="w-24 h-24 rounded-xl object-cover border-2 border-blue-500/30"
+                />
+              </div>
+            )}
+            
             <div className="space-y-4">
               <div>
                 <p className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">Full Name</p>

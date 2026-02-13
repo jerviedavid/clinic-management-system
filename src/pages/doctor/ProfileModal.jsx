@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { FaXmark, FaFloppyDisk, FaUser, FaUserDoctor, FaIdCard, FaStethoscope, FaClock, FaQuoteLeft, FaGraduationCap, FaBriefcase, FaMoneyBillWave } from 'react-icons/fa6'
+import { Camera, Upload, Image as ImageIcon, X } from 'lucide-react'
 import api from '../../utils/api'
 import { toast } from 'react-hot-toast'
 
@@ -15,8 +16,13 @@ export default function ProfileModal({ isOpen, onClose, onUpdate }) {
         consultationFee: '',
         clinicHours: '',
         education: '',
-        experience: ''
+        experience: '',
+        profileImage: null
     })
+    
+    // Refs for profile image inputs
+    const profileImageInputRef = useRef(null)
+    const profileCameraInputRef = useRef(null)
 
     useEffect(() => {
         if (isOpen) {
@@ -38,7 +44,8 @@ export default function ProfileModal({ isOpen, onClose, onUpdate }) {
                 consultationFee: doctorProfile?.consultationFee || '',
                 clinicHours: doctorProfile?.clinicHours || '',
                 education: doctorProfile?.education || '',
-                experience: doctorProfile?.experience || ''
+                experience: doctorProfile?.experience || '',
+                profileImage: user.profileImage || null
             })
         } catch (error) {
             toast.error('Failed to load profile')
@@ -63,6 +70,44 @@ export default function ProfileModal({ isOpen, onClose, onUpdate }) {
         }
     }
 
+    // Handle profile image upload
+    const handleProfileImageUpload = (e) => {
+        const file = e.target.files[0]
+        if (!file) return
+
+        // Check file size (50MB limit)
+        if (file.size > 50 * 1024 * 1024) {
+            toast.error('Image should be less than 50MB')
+            return
+        }
+
+        const reader = new FileReader()
+        reader.onloadend = () => {
+            setFormData({ ...formData, profileImage: reader.result })
+            toast.success('Profile photo added')
+        }
+        reader.readAsDataURL(file)
+    }
+
+    // Handle camera capture for profile image
+    const handleProfileCamera = (e) => {
+        const file = e.target.files[0]
+        if (!file) return
+
+        const reader = new FileReader()
+        reader.onloadend = () => {
+            setFormData({ ...formData, profileImage: reader.result })
+            toast.success('Photo captured')
+        }
+        reader.readAsDataURL(file)
+    }
+
+    // Remove profile image
+    const removeProfileImage = () => {
+        setFormData({ ...formData, profileImage: null })
+        toast.success('Profile photo removed')
+    }
+
     if (!isOpen) return null
 
     return (
@@ -85,6 +130,76 @@ export default function ProfileModal({ isOpen, onClose, onUpdate }) {
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="space-y-6">
+                        {/* Profile Photo Section */}
+                        <div>
+                            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 border-b border-white/5 pb-2">Profile Photo</h3>
+                            <div className="flex items-start gap-6">
+                                {/* Image Preview */}
+                                <div className="relative">
+                                    {formData.profileImage ? (
+                                        <div className="relative group">
+                                            <img 
+                                                src={formData.profileImage} 
+                                                alt="Doctor profile" 
+                                                className="w-32 h-32 rounded-xl object-cover border-2 border-blue-500/30"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={removeProfileImage}
+                                                className="absolute top-2 right-2 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                                title="Remove Image"
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="w-32 h-32 rounded-xl bg-white/5 border-2 border-dashed border-white/20 flex items-center justify-center">
+                                            <ImageIcon className="w-8 h-8 text-slate-600" />
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                {/* Upload Controls */}
+                                <div className="flex-1 space-y-3">
+                                    <p className="text-xs text-slate-400">Upload a professional photo or capture using camera</p>
+                                    <div className="flex gap-3">
+                                        <input
+                                            ref={profileImageInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleProfileImageUpload}
+                                            className="hidden"
+                                        />
+                                        <input
+                                            ref={profileCameraInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            capture="user"
+                                            onChange={handleProfileCamera}
+                                            className="hidden"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => profileImageInputRef.current?.click()}
+                                            className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors border border-blue-500/20"
+                                        >
+                                            <Upload className="w-4 h-4" />
+                                            <span className="text-sm font-medium">Upload Photo</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => profileCameraInputRef.current?.click()}
+                                            className="flex items-center gap-2 px-4 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded-lg transition-colors border border-purple-500/20"
+                                        >
+                                            <Camera className="w-4 h-4" />
+                                            <span className="text-sm font-medium">Capture Photo</span>
+                                        </button>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500">Maximum 50MB. Supports JPG, PNG, GIF formats.</p>
+                                </div>
+                            </div>
+                        </div>
+                        
                         {/* Section 1: Basic Account Information */}
                         <div>
                             <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 border-b border-white/5 pb-2">Account Information</h3>

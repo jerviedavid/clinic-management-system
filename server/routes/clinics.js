@@ -204,7 +204,7 @@ router.post('/:clinicId/add-staff', requireAuth, requireRole(['ADMIN']), async (
 router.get('/:clinicId/staff', requireAuth, requireClinicAccess, requireRole(['ADMIN']), async (req, res) => {
     try {
         const staff = db.prepare(`
-            SELECT u.id, u.email, u.fullName, u.tempPassword, 
+            SELECT u.id, u.email, u.fullName, u.tempPassword, u.profileImage,
                    GROUP_CONCAT(r.name, ', ') as roleName
             FROM User u
             JOIN ClinicUser cu ON u.id = cu.userId
@@ -228,21 +228,22 @@ router.patch('/:clinicId/staff/:userId', requireAuth, requireClinicAccess, requi
     try {
         const clinicId = parseInt(req.params.clinicId);
         const userId = parseInt(req.params.userId);
-        const { fullName, email, role, alsoMakeAdmin } = req.body;
+        const { fullName, email, role, alsoMakeAdmin, profileImage } = req.body;
 
-        console.log(`[UPDATE STAFF] Clinic: ${clinicId}, User: ${userId}`, { fullName, email, role, alsoMakeAdmin });
+        console.log(`[UPDATE STAFF] Clinic: ${clinicId}, User: ${userId}`, { fullName, email, role, alsoMakeAdmin, hasProfileImage: !!profileImage });
 
         const updateStaff = db.transaction((data) => {
-            const { fullName, email, userId, clinicId, role, alsoMakeAdmin } = data;
+            const { fullName, email, userId, clinicId, role, alsoMakeAdmin, profileImage } = data;
 
             // Update User details if provided
-            if (fullName || email) {
+            if (fullName || email || profileImage !== undefined) {
                 const userUpdate = db.prepare(`
                     UPDATE User 
                     SET fullName = COALESCE(?, fullName),
-                        email = COALESCE(?, email)
+                        email = COALESCE(?, email),
+                        profileImage = ?
                     WHERE id = ?
-                `).run(fullName, email, userId);
+                `).run(fullName, email, profileImage, userId);
                 console.log(` - User record updated: ${userUpdate.changes} row(s)`);
             }
 
@@ -308,7 +309,8 @@ router.patch('/:clinicId/staff/:userId', requireAuth, requireClinicAccess, requi
             userId,
             clinicId,
             role,
-            alsoMakeAdmin: req.body.alsoMakeAdmin
+            alsoMakeAdmin: req.body.alsoMakeAdmin,
+            profileImage
         });
 
         res.json({ message: 'Staff member updated successfully' });

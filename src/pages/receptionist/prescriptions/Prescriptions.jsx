@@ -40,20 +40,26 @@ export default function ReceptionistPrescriptions() {
   const [loading, setLoading] = useState(false)
   const [doctors, setDoctors] = useState([])
 
-  // Fetch prescriptions and doctors
+  // Fetch prescriptions and extract doctors
   useEffect(() => {
     if (!currentUser) return
 
     const fetchData = async () => {
       setLoading(true)
       try {
-        const [prescriptionsRes, staffRes] = await Promise.all([
-          api.get('/prescriptions'),
-          api.get('/staff')
-        ])
-
+        const prescriptionsRes = await api.get('/prescriptions')
+        
         setPrescriptions(prescriptionsRes.data)
-        setDoctors(staffRes.data.filter(s => s.role === 'doctor'))
+        
+        // Extract unique doctors from prescriptions
+        const uniqueDoctors = [...new Set(prescriptionsRes.data.map(p => p.doctorName))]
+          .filter(Boolean)
+          .map((name, index) => ({
+            id: index + 1,
+            fullName: name,
+            role: 'DOCTOR'
+          }))
+        setDoctors(uniqueDoctors)
       } catch (error) {
         console.error('Error fetching prescriptions:', error)
         toast.error('Error loading prescriptions')

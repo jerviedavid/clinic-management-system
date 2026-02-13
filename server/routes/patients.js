@@ -15,7 +15,14 @@ router.get('/ping', (req, res) => {
 router.get('/', requireAuth, async (req, res) => {
     try {
         const patients = db.prepare('SELECT * FROM Patient WHERE clinicId = ? ORDER BY createdAt DESC').all(req.user.clinicId);
-        res.json(patients);
+        
+        // Parse attachments JSON for each patient
+        const parsedPatients = patients.map(p => ({
+            ...p,
+            attachments: p.attachments ? JSON.parse(p.attachments) : []
+        }));
+        
+        res.json(parsedPatients);
     } catch (error) {
         console.error('Error fetching patients:', error);
         res.status(500).json({ message: 'Error fetching patients' });
@@ -64,7 +71,10 @@ router.get('/:id/history', requireAuth, async (req, res) => {
         console.log(`[DEBUG] History results: Appts: ${appointments.length}, Presc: ${prescriptions.length}, Invoices: ${invoices.length}`);
 
         res.json({
-            patient,
+            patient: {
+                ...patient,
+                attachments: patient.attachments ? JSON.parse(patient.attachments) : []
+            },
             appointments: appointments.map(a => ({
                 ...a,
                 vitalSigns: a.vitalSigns ? JSON.parse(a.vitalSigns) : null
@@ -98,7 +108,9 @@ router.post('/', requireAuth, requireRole(['RECEPTIONIST', 'ADMIN']), async (req
             emergencyContactPhone,
             bloodType,
             allergies,
-            medicalHistory
+            medicalHistory,
+            profileImage,
+            attachments
         } = req.body;
 
         if (!fullName) {
@@ -109,12 +121,13 @@ router.post('/', requireAuth, requireRole(['RECEPTIONIST', 'ADMIN']), async (req
             INSERT INTO Patient (
                 fullName, dateOfBirth, gender, phone, email, address,
                 emergencyContactName, emergencyContactPhone, bloodType,
-                allergies, medicalHistory, clinicId
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                allergies, medicalHistory, profileImage, attachments, clinicId
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
             fullName, dateOfBirth, gender, phone, email, address,
             emergencyContactName, emergencyContactPhone, bloodType,
-            allergies, medicalHistory, req.user.clinicId
+            allergies, medicalHistory, profileImage || null, 
+            attachments ? JSON.stringify(attachments) : null, req.user.clinicId
         );
 
         res.status(201).json({ id: result.lastInsertRowid, message: 'Patient created successfully' });
@@ -134,6 +147,11 @@ router.patch('/:id', requireAuth, requireRole(['RECEPTIONIST', 'ADMIN']), async 
         const patient = db.prepare('SELECT id FROM Patient WHERE id = ? AND clinicId = ?').get(id, req.user.clinicId);
         if (!patient) {
             return res.status(404).json({ message: 'Patient not found or unauthorized' });
+        }
+
+        // Handle JSON serialization for attachments
+        if (updates.attachments && Array.isArray(updates.attachments)) {
+            updates.attachments = JSON.stringify(updates.attachments);
         }
 
         const fields = Object.keys(updates).filter(key => key !== 'id' && key !== 'clinicId' && key !== 'createdAt');

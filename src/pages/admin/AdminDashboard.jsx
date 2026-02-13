@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { Link } from 'react-router-dom'
 import LogoutButton from '../../components/LogoutButton'
@@ -8,7 +8,7 @@ import {
     FaCircleCheck, FaClock, FaCircleXmark, FaEye, FaEyeSlash, FaCopy,
     FaPenToSquare, FaXmark, FaFloppyDisk, FaTrashCan, FaRotate, FaCircleInfo
 } from 'react-icons/fa6'
-import { TrendingUp, AlertTriangle, CreditCard } from 'lucide-react'
+import { TrendingUp, AlertTriangle, CreditCard, Camera, Upload, Image as ImageIcon, X } from 'lucide-react'
 import api from '../../utils/api'
 import { toast } from 'react-hot-toast'
 import UpgradeModal from '../../components/UpgradeModal'
@@ -38,6 +38,10 @@ export default function AdminDashboard() {
     const [isProcessing, setIsProcessing] = useState(false)
     const [showUpgradeModal, setShowUpgradeModal] = useState(false)
     const [upgradeReason, setUpgradeReason] = useState({ feature: '', requiredPlan: '' })
+    
+    // Refs for profile image inputs
+    const profileImageInputRef = useRef(null)
+    const profileCameraInputRef = useRef(null)
 
     useEffect(() => {
         fetchStaff()
@@ -157,6 +161,44 @@ export default function AdminDashboard() {
         } finally {
             setIsProcessing(false)
         }
+    }
+
+    // Handle profile image upload
+    const handleProfileImageUpload = (e) => {
+        const file = e.target.files[0]
+        if (!file) return
+
+        // Check file size (50MB limit)
+        if (file.size > 50 * 1024 * 1024) {
+            toast.error('Image should be less than 50MB')
+            return
+        }
+
+        const reader = new FileReader()
+        reader.onloadend = () => {
+            setEditingStaff({ ...editingStaff, profileImage: reader.result })
+            toast.success('Profile image added')
+        }
+        reader.readAsDataURL(file)
+    }
+
+    // Handle camera capture for profile image
+    const handleProfileCamera = (e) => {
+        const file = e.target.files[0]
+        if (!file) return
+
+        const reader = new FileReader()
+        reader.onloadend = () => {
+            setEditingStaff({ ...editingStaff, profileImage: reader.result })
+            toast.success('Photo captured')
+        }
+        reader.readAsDataURL(file)
+    }
+
+    // Remove profile image
+    const removeProfileImage = () => {
+        setEditingStaff({ ...editingStaff, profileImage: null })
+        toast.success('Profile image removed')
     }
 
     const handleDeleteStaff = async (userId) => {
@@ -435,9 +477,22 @@ export default function AdminDashboard() {
                                                 {staff.map((member) => (
                                                     <tr key={member.id} className="text-sm">
                                                         <td className="py-4">
-                                                            <div>
-                                                                <p className="font-medium text-white">{member.fullName}</p>
-                                                                <p className="text-xs text-slate-500">{member.email}</p>
+                                                            <div className="flex items-center gap-3">
+                                                                {member.profileImage ? (
+                                                                    <img 
+                                                                        src={member.profileImage} 
+                                                                        alt={member.fullName}
+                                                                        className="w-10 h-10 rounded-lg object-cover border border-white/10"
+                                                                    />
+                                                                ) : (
+                                                                    <div className="w-10 h-10 bg-cyan-500/20 rounded-lg flex items-center justify-center">
+                                                                        <FaUsers className="w-5 h-5 text-cyan-400" />
+                                                                    </div>
+                                                                )}
+                                                                <div>
+                                                                    <p className="font-medium text-white">{member.fullName}</p>
+                                                                    <p className="text-xs text-slate-500">{member.email}</p>
+                                                                </div>
                                                             </div>
                                                         </td>
                                                         <td className="py-4">
@@ -480,7 +535,8 @@ export default function AdminDashboard() {
                                                                             fullName: member.fullName,
                                                                             email: member.email,
                                                                             role: roles.find(r => r !== 'ADMIN') || 'RECEPTIONIST',
-                                                                            alsoMakeAdmin: roles.includes('ADMIN')
+                                                                            alsoMakeAdmin: roles.includes('ADMIN'),
+                                                                            profileImage: member.profileImage
                                                                         })
                                                                     }}
                                                                     className="p-2 hover:bg-white/10 rounded-lg transition-colors text-blue-400"
@@ -653,6 +709,76 @@ export default function AdminDashboard() {
                             </button>
                         </div>
                         <form onSubmit={handleUpdateStaff} className="space-y-4">
+                            {/* Profile Image Section */}
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-slate-400 mb-3">Profile Photo</label>
+                                <div className="flex items-start gap-6">
+                                    {/* Image Preview */}
+                                    <div className="relative">
+                                        {editingStaff.profileImage ? (
+                                            <div className="relative group">
+                                                <img 
+                                                    src={editingStaff.profileImage} 
+                                                    alt="Staff profile" 
+                                                    className="w-32 h-32 rounded-xl object-cover border-2 border-blue-500/30"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={removeProfileImage}
+                                                    className="absolute top-2 right-2 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    title="Remove Image"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="w-32 h-32 rounded-xl bg-white/5 border-2 border-dashed border-white/20 flex items-center justify-center">
+                                                <ImageIcon className="w-8 h-8 text-slate-600" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Upload Controls */}
+                                    <div className="flex-1 space-y-3">
+                                        <p className="text-xs text-slate-400">Upload a profile photo or capture using camera</p>
+                                        <div className="flex gap-3">
+                                            <input
+                                                ref={profileImageInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleProfileImageUpload}
+                                                className="hidden"
+                                            />
+                                            <input
+                                                ref={profileCameraInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                capture="user"
+                                                onChange={handleProfileCamera}
+                                                className="hidden"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => profileImageInputRef.current?.click()}
+                                                className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors border border-blue-500/20"
+                                            >
+                                                <Upload className="w-4 h-4" />
+                                                <span className="text-sm font-medium">Upload Photo</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => profileCameraInputRef.current?.click()}
+                                                className="flex items-center gap-2 px-4 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded-lg transition-colors border border-purple-500/20"
+                                            >
+                                                <Camera className="w-4 h-4" />
+                                                <span className="text-sm font-medium">Capture Photo</span>
+                                            </button>
+                                        </div>
+                                        <p className="text-[10px] text-slate-500">Maximum 50MB. Supports JPG, PNG, GIF formats.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <div>
                                 <label className="block text-sm font-medium text-slate-400 mb-2">Full Name</label>
                                 <input
@@ -742,9 +868,17 @@ export default function AdminDashboard() {
                         </div>
                         <div className="space-y-6">
                             <div className="flex flex-col items-center pb-6 border-b border-white/10">
-                                <div className="w-20 h-20 bg-cyan-500/20 rounded-2xl flex items-center justify-center mb-4">
-                                    <FaUsers className="w-10 h-10 text-cyan-400" />
-                                </div>
+                                {viewingStaff.profileImage ? (
+                                    <img 
+                                        src={viewingStaff.profileImage} 
+                                        alt={viewingStaff.fullName}
+                                        className="w-24 h-24 rounded-2xl object-cover mb-4 border-2 border-cyan-500/30"
+                                    />
+                                ) : (
+                                    <div className="w-20 h-20 bg-cyan-500/20 rounded-2xl flex items-center justify-center mb-4">
+                                        <FaUsers className="w-10 h-10 text-cyan-400" />
+                                    </div>
+                                )}
                                 <h3 className="text-xl font-bold">{viewingStaff.fullName}</h3>
                                 <p className="text-slate-400">{viewingStaff.roleName || viewingStaff.role}</p>
                             </div>

@@ -166,8 +166,16 @@ export function AuthProvider({ children }) {
   }
 
   async function resendVerificationEmail() {
-    // Placeholder for verify email API
-    console.log('Resend verification email');
+    if (!currentUser?.email) {
+      throw new Error('No user email found');
+    }
+    try {
+      await api.post('/auth/resend-verification', { email: currentUser.email });
+      return true;
+    } catch (error) {
+      console.error('Resend verification error:', error);
+      throw error;
+    }
   }
 
   useEffect(() => {

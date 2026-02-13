@@ -768,15 +768,17 @@ router.get('/profile', async (req, res) => {
         if (!token) return res.status(401).json({ message: 'Unauthorized' });
 
         const decoded = jwt.verify(token, JWT_SECRET);
-        const user = db.prepare('SELECT id, email, fullName, emailVerified FROM User WHERE id = ?').get(decoded.userId);
+        const user = db.prepare('SELECT id, email, fullName, emailVerified, profileImage FROM User WHERE id = ?').get(decoded.userId);
 
         if (!user) return res.status(404).json({ message: 'User not found' });
 
         const doctorProfile = db.prepare('SELECT * FROM DoctorProfile WHERE userId = ?').get(user.id);
+        const receptionistProfile = db.prepare('SELECT * FROM ReceptionistProfile WHERE userId = ?').get(user.id);
 
         res.json({
             user,
-            doctorProfile: doctorProfile || null
+            doctorProfile: doctorProfile || null,
+            receptionistProfile: receptionistProfile || null
         });
     } catch (error) {
         console.error('Get profile error:', error);
@@ -810,7 +812,16 @@ router.post('/profile', async (req, res) => {
             consultationFee,
             clinicHours,
             education,
-            experience
+            experience,
+            profileImage,
+            dateOfBirth,
+            address,
+            phone,
+            emergencyContactName,
+            emergencyContactPhone,
+            position,
+            yearsOfExperience,
+            skills
         } = req.body;
 
         if (!fullName || !email) {
@@ -819,8 +830,13 @@ router.post('/profile', async (req, res) => {
 
         // Start transaction
         const transaction = db.transaction(() => {
-            // Update User
-            db.prepare('UPDATE User SET fullName = ?, email = ? WHERE id = ?').run(fullName, email, decoded.userId);
+            // Update User (including profileImage)
+            db.prepare('UPDATE User SET fullName = ?, email = ?, profileImage = ? WHERE id = ?').run(
+                fullName, 
+                email, 
+                profileImage || null, 
+                decoded.userId
+            );
 
             // Update or Create Doctor Profile
             const existingProfile = db.prepare('SELECT id FROM DoctorProfile WHERE userId = ?').get(decoded.userId);
@@ -841,7 +857,7 @@ router.post('/profile', async (req, res) => {
                     experience ? parseInt(experience) : null,
                     decoded.userId
                 );
-            } else {
+            } else if (specialization || licenseNumber || bio) {
                 db.prepare(`
                     INSERT INTO DoctorProfile (userId, specialization, licenseNumber, bio, consultationFee, clinicHours, education, experience)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -854,6 +870,45 @@ router.post('/profile', async (req, res) => {
                     clinicHours || null,
                     education || null,
                     experience ? parseInt(experience) : null
+                );
+            }
+
+            // Update or Create Receptionist Profile
+            const existingReceptionistProfile = db.prepare('SELECT id FROM ReceptionistProfile WHERE userId = ?').get(decoded.userId);
+
+            if (existingReceptionistProfile) {
+                db.prepare(`
+                    UPDATE ReceptionistProfile 
+                    SET dateOfBirth = ?, address = ?, phone = ?, emergencyContactName = ?, 
+                        emergencyContactPhone = ?, position = ?, yearsOfExperience = ?, skills = ?, 
+                        updatedAt = CURRENT_TIMESTAMP
+                    WHERE userId = ?
+                `).run(
+                    dateOfBirth || null,
+                    address || null,
+                    phone || null,
+                    emergencyContactName || null,
+                    emergencyContactPhone || null,
+                    position || null,
+                    yearsOfExperience ? parseInt(yearsOfExperience) : null,
+                    skills || null,
+                    decoded.userId
+                );
+            } else if (dateOfBirth || address || phone || position) {
+                db.prepare(`
+                    INSERT INTO ReceptionistProfile (userId, dateOfBirth, address, phone, emergencyContactName, 
+                        emergencyContactPhone, position, yearsOfExperience, skills)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `).run(
+                    decoded.userId,
+                    dateOfBirth || null,
+                    address || null,
+                    phone || null,
+                    emergencyContactName || null,
+                    emergencyContactPhone || null,
+                    position || null,
+                    yearsOfExperience ? parseInt(yearsOfExperience) : null,
+                    skills || null
                 );
             }
         });

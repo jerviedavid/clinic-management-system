@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import LogoutButton from '../../components/LogoutButton'
 import EmailVerificationStatus from '../../components/EmailVerificationStatus'
-import { Bell, UserPlus, CalendarCheck, Users, Calendar, FileText, FileDown, Hash, DollarSign, Shield } from 'lucide-react'
+import { Bell, UserPlus, CalendarCheck, Users, Calendar, FileText, FileDown, Hash, DollarSign, Shield, Edit } from 'lucide-react'
 import api from '../../utils/api'
+import ProfileModal from './ProfileModal'
 
 export default function Receptionist() {
   const { currentUser, userRole, isAdmin, roles, refreshUser } = useAuth()
@@ -13,15 +14,19 @@ export default function Receptionist() {
   const [todayPrescriptions, setTodayPrescriptions] = useState(0)
   const [totalAppointments, setTotalAppointments] = useState(0)
   const [clinicInfo, setClinicInfo] = useState(null)
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
+  const [profileImage, setProfileImage] = useState(null)
+  const [receptionistProfile, setReceptionistProfile] = useState(null)
 
   // Fetch real appointment data
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [apptsRes, prescriptionsRes, clinicRes] = await Promise.all([
+        const [apptsRes, prescriptionsRes, clinicRes, profileRes] = await Promise.all([
           api.get('/appointments'),
           api.get('/prescriptions'),
-          currentUser?.clinicId ? api.get(`/clinics/${currentUser.clinicId}`) : Promise.resolve({ data: null })
+          currentUser?.clinicId ? api.get(`/clinics/${currentUser.clinicId}`) : Promise.resolve({ data: null }),
+          api.get('/auth/profile')
         ]);
 
         const appointmentsData = apptsRes.data;
@@ -30,6 +35,8 @@ export default function Receptionist() {
         setAppointments(appointmentsData);
         setTotalAppointments(appointmentsData.length);
         setClinicInfo(clinicRes.data);
+        setProfileImage(profileRes.data.user?.profileImage || null);
+        setReceptionistProfile(profileRes.data.receptionistProfile || null);
 
         const today = new Date().toISOString().split('T')[0];
 
@@ -54,9 +61,17 @@ export default function Receptionist() {
       <header className="bg-white/5 backdrop-blur-xl border-b border-white/10 p-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-cyan-500/20 rounded-xl flex items-center justify-center">
-              <Bell className="w-6 h-6 text-cyan-400" />
-            </div>
+            {profileImage ? (
+              <img 
+                src={profileImage} 
+                alt={currentUser?.fullName}
+                className="w-10 h-10 rounded-xl object-cover border border-cyan-500/30"
+              />
+            ) : (
+              <div className="w-10 h-10 bg-cyan-500/20 rounded-xl flex items-center justify-center">
+                <Bell className="w-6 h-6 text-cyan-400" />
+              </div>
+            )}
             <div>
               <h1 className="text-xl font-bold">{clinicInfo?.name || 'Receptionist Dashboard'}</h1>
               <p className="text-sm text-slate-400">
@@ -65,7 +80,16 @@ export default function Receptionist() {
               </p>
             </div>
           </div>
-          <LogoutButton />
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setIsProfileModalOpen(true)}
+              className="flex items-center space-x-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl transition-all font-medium text-sm"
+            >
+              <Edit className="w-4 h-4 text-cyan-400" />
+              <span>My Profile</span>
+            </button>
+            <LogoutButton />
+          </div>
         </div>
       </header>
 
@@ -261,12 +285,61 @@ export default function Receptionist() {
 
         {/* User Info Card */}
         <div className="mt-8 bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
-          <h2 className="text-xl font-bold mb-4">Account Information</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold">Account Information</h2>
+            <button
+              onClick={() => setIsProfileModalOpen(true)}
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors text-cyan-400"
+              title="Edit Profile"
+            >
+              <Edit className="w-4 h-4" />
+            </button>
+          </div>
+          
+          {/* Profile Image */}
+          {profileImage && (
+            <div className="flex justify-center mb-6">
+              <img 
+                src={profileImage} 
+                alt={currentUser?.fullName}
+                className="w-24 h-24 rounded-xl object-cover border-2 border-cyan-500/30"
+              />
+            </div>
+          )}
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-slate-400 text-sm">Full Name</p>
+              <p className="text-white font-medium">{currentUser?.fullName}</p>
+            </div>
             <div>
               <p className="text-slate-400 text-sm">Email</p>
               <p className="text-white font-medium">{currentUser?.email}</p>
             </div>
+            {receptionistProfile?.dateOfBirth && (
+              <div>
+                <p className="text-slate-400 text-sm">Date of Birth</p>
+                <p className="text-white font-medium">{new Date(receptionistProfile.dateOfBirth).toLocaleDateString()}</p>
+              </div>
+            )}
+            {receptionistProfile?.phone && (
+              <div>
+                <p className="text-slate-400 text-sm">Phone</p>
+                <p className="text-white font-medium">{receptionistProfile.phone}</p>
+              </div>
+            )}
+            {receptionistProfile?.position && (
+              <div>
+                <p className="text-slate-400 text-sm">Position</p>
+                <p className="text-cyan-400 font-medium">{receptionistProfile.position}</p>
+              </div>
+            )}
+            {receptionistProfile?.yearsOfExperience && (
+              <div>
+                <p className="text-slate-400 text-sm">Years of Experience</p>
+                <p className="text-white font-medium">{receptionistProfile.yearsOfExperience} years</p>
+              </div>
+            )}
             <div>
               <p className="text-slate-400 text-sm">Role</p>
               <p className="text-cyan-400 font-medium capitalize">
@@ -274,58 +347,112 @@ export default function Receptionist() {
               </p>
             </div>
             <div>
-              <p className="text-slate-400 text-sm">Full Name</p>
-              <p className="text-white font-medium">{currentUser?.fullName}</p>
-            </div>
-            <div>
-              <p className="text-slate-400 text-sm">Admin Access</p>
-              <div className="flex items-center space-x-2">
-                <p className={isAdmin ? "text-cyan-400 font-bold" : "text-slate-500"}>
-                  {isAdmin ? 'Enabled' : 'Disabled'}
-                </p>
-                <button
-                  onClick={() => refreshUser()}
-                  className="text-[10px] bg-white/10 hover:bg-white/20 px-2 py-0.5 rounded transition-colors text-slate-400 hover:text-white"
-                >
-                  Refresh Context
-                </button>
-              </div>
-            </div>
-            <div>
               <p className="text-slate-400 text-sm">Email Verified</p>
               <EmailVerificationStatus />
             </div>
-            <div>
-              <p className="text-slate-400 text-sm">Raw Roles (Debug)</p>
-              <p className="text-xs font-mono text-slate-500">{JSON.stringify(roles)}</p>
-            </div>
           </div>
 
-          {clinicInfo && (
-            <div className="mt-8 pt-8 border-t border-white/10">
-              <h3 className="text-lg font-bold mb-4 text-cyan-400">Clinic Information</h3>
+          {receptionistProfile?.address && (
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <p className="text-slate-400 text-sm">Address</p>
+              <p className="text-white font-medium">{receptionistProfile.address}</p>
+            </div>
+          )}
+
+          {(receptionistProfile?.emergencyContactName || receptionistProfile?.emergencyContactPhone) && (
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <h3 className="text-sm font-bold text-cyan-400 mb-2">Emergency Contact</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-slate-400 text-sm">Clinic Name</p>
-                  <p className="text-white font-medium">{clinicInfo.name}</p>
-                </div>
-                <div>
-                  <p className="text-slate-400 text-sm">Address</p>
-                  <p className="text-white font-medium">{clinicInfo.address}</p>
-                </div>
-                <div>
-                  <p className="text-slate-400 text-sm">Phone</p>
-                  <p className="text-white font-medium">{clinicInfo.phone}</p>
-                </div>
-                <div>
-                  <p className="text-slate-400 text-sm">Clinic Email</p>
-                  <p className="text-white font-medium">{clinicInfo.email}</p>
-                </div>
+                {receptionistProfile?.emergencyContactName && (
+                  <div>
+                    <p className="text-slate-400 text-sm">Contact Name</p>
+                    <p className="text-white font-medium">{receptionistProfile.emergencyContactName}</p>
+                  </div>
+                )}
+                {receptionistProfile?.emergencyContactPhone && (
+                  <div>
+                    <p className="text-slate-400 text-sm">Contact Phone</p>
+                    <p className="text-white font-medium">{receptionistProfile.emergencyContactPhone}</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
+
+          {receptionistProfile?.skills && (
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <p className="text-slate-400 text-sm">Skills & Expertise</p>
+              <p className="text-white font-medium">{receptionistProfile.skills}</p>
+            </div>
+          )}
+
+          <div className="mt-4 pt-4 border-t border-white/10">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-slate-400 text-sm">Admin Access</p>
+                <p className={isAdmin ? "text-cyan-400 font-bold" : "text-slate-500"}>
+                  {isAdmin ? 'Enabled' : 'Disabled'}
+                </p>
+              </div>
+              <button
+                onClick={() => refreshUser()}
+                className="text-[10px] bg-white/10 hover:bg-white/20 px-2 py-1 rounded transition-colors text-slate-400 hover:text-white"
+              >
+                Refresh Context
+              </button>
+            </div>
+          </div>
+
+          {!receptionistProfile && (
+            <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+              <p className="text-yellow-400 text-sm text-center">
+                Your professional profile is incomplete. Click "Edit Profile" to add your details.
+              </p>
+            </div>
+          )}
+
+          <div className="mt-4 text-xs text-slate-500">
+            <p className="text-slate-400 text-sm">Raw Roles (Debug)</p>
+            <p className="font-mono">{JSON.stringify(roles)}</p>
+          </div>
         </div>
+
+        {clinicInfo && (
+          <div className="mt-8 bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
+            <h3 className="text-xl font-bold mb-4 text-cyan-400">Clinic Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-slate-400 text-sm">Clinic Name</p>
+                <p className="text-white font-medium">{clinicInfo.name}</p>
+              </div>
+              <div>
+                <p className="text-slate-400 text-sm">Address</p>
+                <p className="text-white font-medium">{clinicInfo.address}</p>
+              </div>
+              <div>
+                <p className="text-slate-400 text-sm">Phone</p>
+                <p className="text-white font-medium">{clinicInfo.phone}</p>
+              </div>
+              <div>
+                <p className="text-slate-400 text-sm">Clinic Email</p>
+                <p className="text-white font-medium">{clinicInfo.email}</p>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
+      
+      {/* Profile Modal */}
+      <ProfileModal 
+        isOpen={isProfileModalOpen} 
+        onClose={() => setIsProfileModalOpen(false)}
+        onUpdate={() => {
+          // Refresh profile data after update
+          api.get('/auth/profile').then(res => {
+            setProfileImage(res.data.user?.profileImage || null)
+          })
+        }}
+      />
     </div>
   )
 }

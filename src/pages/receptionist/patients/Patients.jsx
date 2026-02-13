@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../../hooks/useAuth'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
@@ -25,7 +25,14 @@ import {
     DollarSign,
     Clock,
     CheckCircle2,
-    CalendarDays
+    CalendarDays,
+    Camera,
+    Upload,
+    Image as ImageIcon,
+    Paperclip,
+    Trash2,
+    Download,
+    File
 } from 'lucide-react'
 import api from '../../../utils/api'
 
@@ -40,6 +47,14 @@ export default function Patients() {
     const [historyData, setHistoryData] = useState(null)
     const [historyLoading, setHistoryLoading] = useState(false)
     const [activeTab, setActiveTab] = useState('appointments')
+    const [showPreviewModal, setShowPreviewModal] = useState(false)
+    const [previewAttachment, setPreviewAttachment] = useState(null)
+    
+    // New refs for file inputs
+    const fileInputRef = useRef(null)
+    const cameraInputRef = useRef(null)
+    const attachmentInputRef = useRef(null)
+    const attachmentCameraInputRef = useRef(null)
 
     const [formData, setFormData] = useState({
         fullName: '',
@@ -52,7 +67,9 @@ export default function Patients() {
         emergencyContactPhone: '',
         bloodType: '',
         allergies: '',
-        medicalHistory: ''
+        medicalHistory: '',
+        profileImage: null,
+        attachments: []
     })
 
     useEffect(() => {
@@ -83,7 +100,9 @@ export default function Patients() {
                 emergencyContactPhone: patient.emergencyContactPhone || '',
                 bloodType: patient.bloodType || '',
                 allergies: patient.allergies || '',
-                medicalHistory: patient.medicalHistory || ''
+                medicalHistory: patient.medicalHistory || '',
+                profileImage: patient.profileImage || null,
+                attachments: patient.attachments || []
             })
         } else {
             setSelectedPatient(null)
@@ -98,10 +117,131 @@ export default function Patients() {
                 emergencyContactPhone: '',
                 bloodType: '',
                 allergies: '',
-                medicalHistory: ''
+                medicalHistory: '',
+                profileImage: null,
+                attachments: []
             })
         }
         setShowModal(true)
+    }
+
+    // Handle profile image upload / camera capture
+    const handleImageUpload = (e) => {
+        const file = e.target.files[0]
+        if (file) {
+            // Check file size (limit to 50MB)
+            if (file.size > 50 * 1024 * 1024) {
+                toast.error('Image size should be less than 50MB')
+                return
+            }
+            
+            const reader = new FileReader()
+            reader.onloadend = () => {
+                setFormData({ ...formData, profileImage: reader.result })
+                toast.success('Profile image loaded')
+            }
+            reader.readAsDataURL(file)
+        }
+    }
+
+    // Handle attachments upload (from file or camera)
+    const handleAttachmentUpload = (e) => {
+        const files = Array.from(e.target.files)
+        
+        // Check total size (limit to 10MB per file)
+        const oversizedFiles = files.filter(f => f.size > 10 * 1024 * 1024)
+        if (oversizedFiles.length > 0) {
+            toast.error('Each file should be less than 10MB')
+            return
+        }
+        
+        const filePromises = files.map(file => {
+            return new Promise((resolve) => {
+                const reader = new FileReader()
+                reader.onloadend = () => {
+                    resolve({
+                        name: file.name,
+                        type: file.type,
+                        size: file.size,
+                        data: reader.result,
+                        uploadedAt: new Date().toISOString()
+                    })
+                }
+                reader.readAsDataURL(file)
+            })
+        })
+        
+        Promise.all(filePromises).then(newAttachments => {
+            setFormData({ 
+                ...formData, 
+                attachments: [...formData.attachments, ...newAttachments] 
+            })
+            toast.success(`${newAttachments.length} file(s) added`)
+        })
+    }
+
+    // Handle camera capture for attachments (documents/images)
+    const handleAttachmentCamera = (e) => {
+        const files = Array.from(e.target.files)
+        
+        const filePromises = files.map((file, index) => {
+            return new Promise((resolve) => {
+                const reader = new FileReader()
+                reader.onloadend = () => {
+                    resolve({
+                        name: `Camera_Capture_${new Date().getTime()}_${index + 1}.jpg`,
+                        type: file.type,
+                        size: file.size,
+                        data: reader.result,
+                        uploadedAt: new Date().toISOString()
+                    })
+                }
+                reader.readAsDataURL(file)
+            })
+        })
+        
+        Promise.all(filePromises).then(newAttachments => {
+            setFormData({ 
+                ...formData, 
+                attachments: [...formData.attachments, ...newAttachments] 
+            })
+            toast.success(`${newAttachments.length} document(s) captured`)
+        })
+    }
+
+    // Remove attachment
+    const removeAttachment = (index) => {
+        const updated = formData.attachments.filter((_, i) => i !== index)
+        setFormData({ ...formData, attachments: updated })
+        toast.success('Attachment removed')
+    }
+
+    // Remove profile image
+    const removeProfileImage = () => {
+        setFormData({ ...formData, profileImage: null })
+        toast.success('Profile image removed')
+    }
+
+    // View attachment in modal
+    const viewAttachment = (attachment) => {
+        setPreviewAttachment(attachment)
+        setShowPreviewModal(true)
+    }
+
+    // Download attachment
+    const downloadAttachment = (attachment) => {
+        try {
+            const link = document.createElement('a')
+            link.href = attachment.data
+            link.download = attachment.name
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            toast.success('Download started')
+        } catch (error) {
+            console.error('Error downloading file:', error)
+            toast.error('Failed to download file')
+        }
     }
 
     const handleSubmit = async (e) => {
@@ -207,28 +347,38 @@ export default function Patients() {
                             <div key={patient.id} className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all group">
                                 <div className="flex justify-between items-start mb-4">
                                     <div className="flex items-center space-x-3">
-                                        <div className="w-12 h-12 bg-cyan-500/20 rounded-full flex items-center justify-center text-cyan-400 font-bold text-xl">
-                                            {patient.fullName.charAt(0)}
-                                        </div>
+                                        {patient.profileImage ? (
+                                            <img 
+                                                src={patient.profileImage} 
+                                                alt={patient.fullName}
+                                                className="w-12 h-12 rounded-full object-cover border-2 border-cyan-500/30"
+                                            />
+                                        ) : (
+                                            <div className="w-12 h-12 bg-cyan-500/20 rounded-full flex items-center justify-center text-cyan-400 font-bold text-xl">
+                                                {patient.fullName.charAt(0)}
+                                            </div>
+                                        )}
                                         <div>
                                             <h3 className="font-bold text-lg">{patient.fullName}</h3>
                                             <p className="text-xs text-slate-400">Patient ID: #{patient.id}</p>
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={() => handleOpenModal(patient)}
-                                        className="p-2 bg-white/5 hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-400 rounded-lg transition-colors"
-                                        title="Edit Profile"
-                                    >
-                                        <Edit className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                        onClick={() => handleViewHistory(patient)}
-                                        className="p-2 bg-white/5 hover:bg-orange-500/20 text-slate-400 hover:text-orange-400 rounded-lg transition-colors"
-                                        title="View History"
-                                    >
-                                        <History className="w-4 h-4" />
-                                    </button>
+                                    <div className="flex gap-1">
+                                        <button
+                                            onClick={() => handleOpenModal(patient)}
+                                            className="p-2 bg-white/5 hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-400 rounded-lg transition-colors"
+                                            title="Edit Profile"
+                                        >
+                                            <Edit className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => handleViewHistory(patient)}
+                                            className="p-2 bg-white/5 hover:bg-orange-500/20 text-slate-400 hover:text-orange-400 rounded-lg transition-colors"
+                                            title="View History"
+                                        >
+                                            <History className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="space-y-3 text-sm">
@@ -279,6 +429,76 @@ export default function Patients() {
                         </div>
 
                         <form onSubmit={handleSubmit} className="p-6 space-y-8">
+                            {/* Profile Image Section */}
+                            <section>
+                                <h3 className="text-sm font-bold text-purple-400 uppercase tracking-wider mb-4">Profile Photo</h3>
+                                <div className="flex items-start gap-6">
+                                    {/* Image Preview */}
+                                    <div className="relative">
+                                        {formData.profileImage ? (
+                                            <div className="relative group">
+                                                <img 
+                                                    src={formData.profileImage} 
+                                                    alt="Patient profile" 
+                                                    className="w-32 h-32 rounded-xl object-cover border-2 border-purple-500/30"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={removeProfileImage}
+                                                    className="absolute top-2 right-2 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    title="Remove Image"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="w-32 h-32 rounded-xl bg-white/5 border-2 border-dashed border-white/20 flex items-center justify-center">
+                                                <ImageIcon className="w-8 h-8 text-slate-600" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Upload Controls */}
+                                    <div className="flex-1 space-y-3">
+                                        <p className="text-xs text-slate-400">Upload a profile photo or capture using camera</p>
+                                        <div className="flex gap-3">
+                                            <input
+                                                ref={fileInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleImageUpload}
+                                                className="hidden"
+                                            />
+                                            <input
+                                                ref={cameraInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                capture="environment"
+                                                onChange={handleImageUpload}
+                                                className="hidden"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded-lg transition-colors border border-purple-500/30"
+                                            >
+                                                <Upload className="w-4 h-4" />
+                                                <span className="text-sm font-medium">Upload Image</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => cameraInputRef.current?.click()}
+                                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 rounded-lg transition-colors border border-cyan-500/30"
+                                            >
+                                                <Camera className="w-4 h-4" />
+                                                <span className="text-sm font-medium">Take Photo</span>
+                                            </button>
+                                        </div>
+                                        <p className="text-[10px] text-slate-500">Maximum file size: 50MB. Supported formats: JPG, PNG, WEBP</p>
+                                    </div>
+                                </div>
+                            </section>
+
                             {/* Personal Information */}
                             <section>
                                 <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-wider mb-4">Personal Information</h3>
@@ -425,6 +645,103 @@ export default function Patients() {
                                         />
                                     </div>
                                 </div>
+                            </section>
+
+                            {/* Attachments Section */}
+                            <section>
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider">Attachments & Documents</h3>
+                                        <div className="h-px flex-1 bg-blue-400/20"></div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => attachmentInputRef.current?.click()}
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-colors text-sm border border-blue-500/30"
+                                        >
+                                            <Upload className="w-4 h-4" />
+                                            <span>Upload Files</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => attachmentCameraInputRef.current?.click()}
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 rounded-lg transition-colors text-sm border border-cyan-500/30"
+                                        >
+                                            <Camera className="w-4 h-4" />
+                                            <span>Capture Document</span>
+                                        </button>
+                                    </div>
+                                    <input
+                                        ref={attachmentInputRef}
+                                        type="file"
+                                        multiple
+                                        onChange={handleAttachmentUpload}
+                                        className="hidden"
+                                    />
+                                    <input
+                                        ref={attachmentCameraInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        capture="environment"
+                                        multiple
+                                        onChange={handleAttachmentCamera}
+                                        className="hidden"
+                                    />
+                                </div>
+                                
+                                {formData.attachments.length === 0 ? (
+                                    <div className="text-center py-8 bg-white/5 border border-dashed border-white/10 rounded-xl">
+                                        <File className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                                        <p className="text-sm text-slate-500">No attachments added yet</p>
+                                        <p className="text-xs text-slate-600 mt-1">Medical reports, test results, X-rays, etc.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {formData.attachments.map((file, index) => (
+                                            <div key={index} className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors group">
+                                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                    <div className="w-8 h-8 bg-blue-500/20 rounded flex items-center justify-center flex-shrink-0">
+                                                        <File className="w-4 h-4 text-blue-400" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium text-white truncate">{file.name}</p>
+                                                        <p className="text-xs text-slate-500">
+                                                            {(file.size / 1024).toFixed(1)} KB • {new Date(file.uploadedAt).toLocaleDateString()}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => viewAttachment(file)}
+                                                        className="p-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded transition-colors"
+                                                        title="View"
+                                                    >
+                                                        <ImageIcon className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => downloadAttachment(file)}
+                                                        className="p-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded transition-colors"
+                                                        title="Download"
+                                                    >
+                                                        <Download className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeAttachment(index)}
+                                                        className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                                        title="Remove"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <p className="text-[10px] text-slate-500 mt-2">Maximum 10MB per file. Upload files or capture documents using camera.</p>
                             </section>
 
                             <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
@@ -627,6 +944,83 @@ export default function Patients() {
                                 className="px-6 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors border border-white/10"
                             >
                                 Close History
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Attachment Preview Modal */}
+            {showPreviewModal && previewAttachment && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowPreviewModal(false)}>
+                    <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between p-6 border-b border-white/10">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                                    <File className="w-5 h-5 text-blue-400" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-bold text-white">{previewAttachment.name}</h2>
+                                    <p className="text-xs text-slate-500">
+                                        {(previewAttachment.size / 1024).toFixed(1)} KB • {new Date(previewAttachment.uploadedAt).toLocaleDateString()}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowPreviewModal(false)}
+                                className="p-2 hover:bg-white/10 rounded-lg transition-colors text-slate-400 hover:text-white"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Preview Content */}
+                        <div className="flex-1 overflow-auto p-6">
+                            {previewAttachment.type.startsWith('image/') ? (
+                                <div className="flex items-center justify-center">
+                                    <img 
+                                        src={previewAttachment.data} 
+                                        alt={previewAttachment.name}
+                                        className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                                    />
+                                </div>
+                            ) : previewAttachment.type === 'application/pdf' ? (
+                                <iframe
+                                    src={previewAttachment.data}
+                                    className="w-full h-[70vh] rounded-lg border border-white/10"
+                                    title={previewAttachment.name}
+                                />
+                            ) : (
+                                <div className="flex flex-col items-center justify-center py-12 bg-white/5 border border-dashed border-white/10 rounded-2xl">
+                                    <File className="w-16 h-16 text-slate-600 mb-4" />
+                                    <p className="text-slate-400 font-medium mb-2">Preview not available</p>
+                                    <p className="text-sm text-slate-500 mb-6">This file type cannot be previewed in the browser</p>
+                                    <button
+                                        onClick={() => downloadAttachment(previewAttachment)}
+                                        className="px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center gap-2"
+                                    >
+                                        <Download className="w-4 h-4" />
+                                        Download File
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Actions */}
+                        <div className="flex items-center justify-end gap-3 p-6 border-t border-white/10">
+                            <button
+                                onClick={() => downloadAttachment(previewAttachment)}
+                                className="px-6 py-2 bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded-lg transition-colors border border-green-500/20 flex items-center gap-2"
+                            >
+                                <Download className="w-4 h-4" />
+                                Download
+                            </button>
+                            <button
+                                onClick={() => setShowPreviewModal(false)}
+                                className="px-6 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors border border-white/10"
+                            >
+                                Close
                             </button>
                         </div>
                     </div>
